@@ -195,13 +195,14 @@ export default function Gerente({ onLogout }) {
     return produtos.filter(p => (Number(inventarioAjustado[p.nome] || 0)) < Number(p.minimo || 0));
   }, [produtos, inventarioAjustado]);
 
+  /* ✅ AGORA: Valor total calculado com STOCK ATUAL (ajustado) */
   const valorTotalStock = useMemo(() => {
     return produtos.reduce((acc, p) => {
-      const stock = Number(inventarioTeorico[p.nome] || 0);
+      const stockAtual = Number(inventarioAjustado[p.nome] || 0);
       const preco = Number(p.preco_unit || 0);
-      return acc + stock * preco;
+      return acc + stockAtual * preco;
     }, 0);
-  }, [produtos, inventarioTeorico]);
+  }, [produtos, inventarioAjustado]);
 
   /* ===== FUNÇÃO FILTRO INTERVALO (YYYY-MM-DD) ===== */
   function dentroIntervalo(iso, de, ate) {
@@ -315,8 +316,6 @@ export default function Gerente({ onLogout }) {
   async function gravarInventarioMensal() {
     const nowIso = new Date().toISOString();
 
-    // grava em massa no inventario_real, e reflete no Stock real imediatamente
-    // (depende de inventario_real.produto ser UNIQUE ou PK para o upsert funcionar bem)
     const rows = produtos
       .map(p => {
         const raw = inventarioEdicao[p.nome];
@@ -332,11 +331,11 @@ export default function Gerente({ onLogout }) {
     const negativas = rows
       .map(r => {
         const teo = Number(inventarioTeorico[r.produto] || 0);
-        const dif = r.quantidade - teo; // negativa = inventário menor do que o esperado
+        const dif = r.quantidade - teo;
         return { ...r, teo, dif };
       })
       .filter(x => x.dif < 0)
-      .sort((a, b) => a.dif - b.dif); // mais negativo primeiro
+      .sort((a, b) => a.dif - b.dif);
 
     if (negativas.length > 0) {
       const linhas = negativas
@@ -357,7 +356,7 @@ export default function Gerente({ onLogout }) {
         `\n\nQueres gravar mesmo assim?`;
 
       const ok = window.confirm(msg);
-      if (!ok) return; // cancela gravação
+      if (!ok) return;
     }
 
     const { error } = await supabase.from("inventario_real").upsert(rows);
@@ -369,7 +368,6 @@ export default function Gerente({ onLogout }) {
       );
     }
 
-    // atualiza UI
     const nextReal = { ...inventarioReal };
     const nextUpd = { ...inventarioRealUpdatedAt };
     rows.forEach(r => {
@@ -458,7 +456,7 @@ export default function Gerente({ onLogout }) {
     doc.save(`saidas_${(filtroDataSaidas || "todas")}_a_${(filtroDataSaidasAte || "todas")}.pdf`);
   }
 
-  /* ✅ PDF STOCK (AGORA AJUSTADO) */
+  /* ✅ PDF STOCK (AJUSTADO) */
   function exportPDFStock() {
     if (!produtos.length) return alert("Sem produtos para exportar.");
 
@@ -549,7 +547,7 @@ export default function Gerente({ onLogout }) {
 
       <h2>👔 Gerente — Controlo Completo</h2>
 
-      {/* ===== AVISOS (AGORA EM TABELA) ===== */}
+      {/* ===== AVISOS (BASEADOS NO STOCK ATUAL) ===== */}
       {produtosAbaixoMinimo.length > 0 && (
         <div style={{ ...styles.card, borderColor: "#e53935" }}>
           <h3>⚠ Avisos de Stock</h3>
@@ -558,23 +556,29 @@ export default function Gerente({ onLogout }) {
             <thead>
               <tr>
                 <th style={styles.th}>Produto</th>
-                <th style={styles.th}>Stock</th>
-                <th style={styles.th}>Mínimo</th>
+                <th style={styles.th}>Stock atual</th>
+                <th style={styles.th}>Stock mínimo</th>
               </tr>
             </thead>
             <tbody>
-              {produtosAbaixoMinimo.map(p => (
-                <tr key={p.nome}>
-                  <td style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
-                  <td style={styles.td}>{fmtNum(inventarioAjustado[p.nome] || 0, 3)}</td>
-                  <td style={styles.td}>{fmtNum(p.minimo || 0, 3)}</td>
-                </tr>
-              ))}
+              {produtosAbaixoMinimo.map(p => {
+                const atual = Number(inventarioAjustado[p.nome] || 0);
+                const minimo = Number(p.minimo || 0);
+
+                return (
+                  <tr key={p.nome}>
+                    <td style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
+                    <td style={styles.td}>{fmtNum(atual, 3)}</td>
+                    <td style={styles.td}>{fmtNum(minimo, 3)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
+      {/* ✅ AGORA É O TOTAL DO STOCK ATUAL */}
       <h3>💰 Valor total de stock: {valorTotalStock.toFixed(2)} €</h3>
 
       {/* ✅ BOTÃO PDF STOCK */}
@@ -740,7 +744,6 @@ export default function Gerente({ onLogout }) {
           required
         />
 
-        {/* ✅ unidade normalizada (select, não texto livre) */}
         <select
           style={styles.input}
           value={produtoNovo.unidade || ""}
@@ -783,9 +786,7 @@ export default function Gerente({ onLogout }) {
           required
         />
 
-        <button style={styles.button}>
-          {produtoNovo.id ? "Guardar alterações" : "Adicionar"}
-        </button>
+        <button style={styles.button}>{produtoNovo.id ? "Guardar alterações" : "Adicionar"}</button>
       </form>
 
       {/* ===== ENTRADA DE STOCK ===== */}
@@ -837,19 +838,9 @@ export default function Gerente({ onLogout }) {
       <h3>📜 Histórico de Entradas</h3>
       <div style={{ marginBottom: 8 }}>
         <span>De</span>
-        <input
-          type="date"
-          style={styles.input}
-          value={filtroEntradaDe}
-          onChange={e => setFiltroEntradaDe(e.target.value)}
-        />
+        <input type="date" style={styles.input} value={filtroEntradaDe} onChange={e => setFiltroEntradaDe(e.target.value)} />
         <span>Até</span>
-        <input
-          type="date"
-          style={styles.input}
-          value={filtroEntradaAte}
-          onChange={e => setFiltroEntradaAte(e.target.value)}
-        />
+        <input type="date" style={styles.input} value={filtroEntradaAte} onChange={e => setFiltroEntradaAte(e.target.value)} />
         <button
           style={styles.button}
           onClick={() => {
@@ -875,8 +866,7 @@ export default function Gerente({ onLogout }) {
           return (
             <div key={e.id} style={{ marginBottom: 4 }}>
               {e.produto} ({produtoInfo?.unidade || ""}) — {e.quantidade} |{" "}
-              {data.toLocaleDateString()}{" "}
-              {data.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} | Gerente
+              {data.toLocaleDateString()} {data.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} | Gerente
             </div>
           );
         })}
@@ -885,19 +875,9 @@ export default function Gerente({ onLogout }) {
       <h3>📜 Histórico de Saídas</h3>
       <div style={{ marginBottom: 8 }}>
         <span>De</span>
-        <input
-          type="date"
-          style={styles.input}
-          value={filtroDataSaidas}
-          onChange={e => setFiltroDataSaidas(e.target.value)}
-        />
+        <input type="date" style={styles.input} value={filtroDataSaidas} onChange={e => setFiltroDataSaidas(e.target.value)} />
         <span>Até</span>
-        <input
-          type="date"
-          style={styles.input}
-          value={filtroDataSaidasAte}
-          onChange={e => setFiltroDataSaidasAte(e.target.value)}
-        />
+        <input type="date" style={styles.input} value={filtroDataSaidasAte} onChange={e => setFiltroDataSaidasAte(e.target.value)} />
         <button
           style={styles.button}
           onClick={() => {
@@ -923,8 +903,7 @@ export default function Gerente({ onLogout }) {
           return (
             <div key={s.id} style={{ marginBottom: 4 }}>
               {s.produto} ({produtoInfo?.unidade || ""}) — {s.quantidade} |{" "}
-              {data.toLocaleDateString()}{" "}
-              {data.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} |{" "}
+              {data.toLocaleDateString()} {data.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} |{" "}
               {s.responsavel || "—"}
             </div>
           );
@@ -984,6 +963,7 @@ export default function Gerente({ onLogout }) {
                       <th style={styles.th}>Unidade</th>
                       <th style={styles.th}>Stock teórico</th>
                       <th style={styles.th}>Stock real</th>
+                      <th style={styles.th}>Stock atual</th>
                       <th style={styles.th}>Stock mínimo</th>
                       <th style={styles.th}>Preço unit.</th>
                       <th style={styles.th}></th>
@@ -995,7 +975,6 @@ export default function Gerente({ onLogout }) {
                       .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""))
                       .map(p => {
                         const stockTeo = Number(inventarioTeorico[p.nome] || 0);
-                        const stockReal = Number(inventarioReal[p.nome] || 0);
                         const stockAjust = Number(inventarioAjustado[p.nome] || 0);
                         const minimo = Number(p.minimo || 0);
                         const preco = Number(p.preco_unit || 0);
@@ -1010,7 +989,6 @@ export default function Gerente({ onLogout }) {
                               <td style={styles.td}>{p.unidade || ""}</td>
                               <td style={styles.tdRight}>{fmtNum(stockTeo, 3)}</td>
 
-                              {/* ✅ Stock real editável inline (blur faz upsert + updated_at) */}
                               <td style={styles.tdRight}>
                                 <input
                                   style={{ ...styles.input, width: 90, textAlign: "right" }}
@@ -1036,6 +1014,8 @@ export default function Gerente({ onLogout }) {
                                 />
                               </td>
 
+                              <td style={styles.tdRight}>{fmtNum(stockAjust, 3)}</td>
+
                               <td style={styles.tdRight}>{fmtNum(minimo, 3)}</td>
                               <td style={styles.tdRight}>{fmtNum(preco, 2)} €</td>
 
@@ -1052,7 +1032,7 @@ export default function Gerente({ onLogout }) {
 
                             {aberto && (
                               <tr key={`${proc}-${p.nome}-acoes`}>
-                                <td style={styles.td} colSpan={7}>
+                                <td style={styles.td} colSpan={8}>
                                   <button style={styles.button} onClick={() => setProdutoNovo(p)} type="button">
                                     ✏ Editar
                                   </button>
@@ -1071,7 +1051,7 @@ export default function Gerente({ onLogout }) {
 
                                   {abaixo && (
                                     <span style={{ marginLeft: 10, ...styles.warning }}>
-                                      ⚠ Abaixo do mínimo (real + movimentos após inventário)
+                                      ⚠ Abaixo do mínimo (com stock atual)
                                     </span>
                                   )}
                                 </td>
