@@ -118,6 +118,10 @@ export default function Gerente({ onLogout }) {
   /* ✅ Avisos começam fechados */
   const [avisosAbertos, setAvisosAbertos] = useState(false);
 
+  /* ✅ Toggles históricos (começam fechados) */
+  const [entradasAbertas, setEntradasAbertas] = useState(false);
+  const [saidasAbertas, setSaidasAbertas] = useState(false);
+
   const [produtoNovo, setProdutoNovo] = useState({
     nome: "",
     unidade: "",
@@ -594,11 +598,7 @@ export default function Gerente({ onLogout }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 style={{ margin: 0 }}>⚠ Avisos de Stock</h3>
 
-            <button
-              style={styles.button}
-              type="button"
-              onClick={() => setAvisosAbertos(prev => !prev)}
-            >
+            <button style={styles.button} type="button" onClick={() => setAvisosAbertos(prev => !prev)}>
               {avisosAbertos ? "Ocultar" : "Mostrar"}
             </button>
           </div>
@@ -959,7 +959,6 @@ export default function Gerente({ onLogout }) {
                       <th style={styles.thProdutos}>Nome</th>
                       <th style={styles.thProdutos}>Unidade</th>
                       <th style={styles.thProdutos}>Stock teórico</th>
-                      {/* ✅ ALTERADO: Stock real -> Inventário inicial */}
                       <th style={styles.thProdutos}>Inventário inicial</th>
                       <th style={styles.thProdutos}>Stock atual</th>
                       <th style={styles.thProdutos}>Stock mínimo</th>
@@ -991,7 +990,6 @@ export default function Gerente({ onLogout }) {
                               <td style={styles.tdProdutos}>{p.unidade || ""}</td>
                               <td style={styles.tdProdutosRight}>{fmtNum(stockTeo, 3)}</td>
 
-                              {/* ✅ Stock real editável inline (blur faz upsert) */}
                               <td style={styles.tdProdutosRight}>
                                 <input
                                   style={{
@@ -1075,158 +1073,188 @@ export default function Gerente({ onLogout }) {
         );
       })}
 
-      {/* ✅ HISTÓRICO ENTRADAS (CARD + TABELA) */}
+      {/* ✅ HISTÓRICO ENTRADAS (CARD + TOGGLE) */}
       <div style={styles.card}>
-        <h3 style={{ marginTop: 0 }}>📜 Histórico de Entradas</h3>
-
-        <div style={{ marginBottom: 8 }}>
-          <span>De</span>
-          <input
-            type="date"
-            style={styles.input}
-            value={filtroEntradaDe}
-            onChange={e => setFiltroEntradaDe(e.target.value)}
-          />
-          <span>Até</span>
-          <input
-            type="date"
-            style={styles.input}
-            value={filtroEntradaAte}
-            onChange={e => setFiltroEntradaAte(e.target.value)}
-          />
-          <button
-            style={styles.button}
-            onClick={() => {
-              setFiltroEntradaDe("");
-              setFiltroEntradaAte("");
-            }}
-            type="button"
-          >
-            Limpar filtro
-          </button>
-
-          <button style={styles.button} onClick={exportPDFEntradas} type="button">
-            📄 PDF Entradas
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ marginTop: 0, marginBottom: 0 }}>📜 Histórico de Entradas</h3>
+          <button style={styles.button} type="button" onClick={() => setEntradasAbertas(prev => !prev)}>
+            {entradasAbertas ? "Ocultar" : "Mostrar"}
           </button>
         </div>
 
-        <table style={styles.tableHist}>
-          <colgroup>
-            <col style={{ width: "34%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "16%" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={styles.thHist}>Produto</th>
-              <th style={styles.thHist}>Unid.</th>
-              <th style={styles.thHist}>Quantidade</th>
-              <th style={styles.thHist}>Data</th>
-              <th style={styles.thHist}>Hora</th>
-              <th style={styles.thHist}>Responsável</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entradasFiltradas.map(e => {
-              const { data, hora } = formatDateTimeParts(e.datahora);
-              return (
-                <tr key={e.id}>
-                  <td style={styles.tdHist} title={e.produto || ""}>{e.produto || ""}</td>
-                  <td style={styles.tdHist}>{getUnidadeByNome(e.produto)}</td>
-                  <td style={styles.tdHistRight}>{fmtNum(e.quantidade, 3)}</td>
-                  <td style={styles.tdHist}>{data}</td>
-                  <td style={styles.tdHist}>{hora}</td>
-                  <td style={styles.tdHist}>Gerente</td>
+        {entradasAbertas && (
+          <>
+            <div style={{ marginBottom: 8, marginTop: 8 }}>
+              <span>De</span>
+              <input
+                type="date"
+                style={styles.input}
+                value={filtroEntradaDe}
+                onChange={e => setFiltroEntradaDe(e.target.value)}
+              />
+              <span>Até</span>
+              <input
+                type="date"
+                style={styles.input}
+                value={filtroEntradaAte}
+                onChange={e => setFiltroEntradaAte(e.target.value)}
+              />
+              <button
+                style={styles.button}
+                onClick={() => {
+                  setFiltroEntradaDe("");
+                  setFiltroEntradaAte("");
+                }}
+                type="button"
+              >
+                Limpar filtro
+              </button>
+
+              <button style={styles.button} onClick={exportPDFEntradas} type="button">
+                📄 PDF Entradas
+              </button>
+            </div>
+
+            <table style={styles.tableHist}>
+              <colgroup>
+                <col style={{ width: "34%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "16%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={styles.thHist}>Produto</th>
+                  <th style={styles.thHist}>Unid.</th>
+                  <th style={styles.thHist}>Quantidade</th>
+                  <th style={styles.thHist}>Data</th>
+                  <th style={styles.thHist}>Hora</th>
+                  <th style={styles.thHist}>Responsável</th>
                 </tr>
-              );
-            })}
-            {entradasFiltradas.length === 0 && (
-              <tr>
-                <td style={styles.tdHist} colSpan={6}>Sem entradas no intervalo.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {entradasFiltradas.map(e => {
+                  const { data, hora } = formatDateTimeParts(e.datahora);
+                  return (
+                    <tr key={e.id}>
+                      <td style={styles.tdHist} title={e.produto || ""}>{e.produto || ""}</td>
+                      <td style={styles.tdHist}>{getUnidadeByNome(e.produto)}</td>
+                      <td style={styles.tdHistRight}>{fmtNum(e.quantidade, 3)}</td>
+                      <td style={styles.tdHist}>{data}</td>
+                      <td style={styles.tdHist}>{hora}</td>
+                      <td style={styles.tdHist}>Gerente</td>
+                    </tr>
+                  );
+                })}
+                {entradasFiltradas.length === 0 && (
+                  <tr>
+                    <td style={styles.tdHist} colSpan={6}>Sem entradas no intervalo.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {!entradasAbertas && (
+          <div style={{ marginTop: 8, opacity: 0.8 }}>
+            {entradasFiltradas.length} entrada(s) no intervalo atual.
+          </div>
+        )}
       </div>
 
-      {/* ✅ HISTÓRICO SAÍDAS (CARD + TABELA) */}
+      {/* ✅ HISTÓRICO SAÍDAS (CARD + TOGGLE) */}
       <div style={styles.card}>
-        <h3 style={{ marginTop: 0 }}>📜 Histórico de Saídas</h3>
-
-        <div style={{ marginBottom: 8 }}>
-          <span>De</span>
-          <input
-            type="date"
-            style={styles.input}
-            value={filtroDataSaidas}
-            onChange={e => setFiltroDataSaidas(e.target.value)}
-          />
-          <span>Até</span>
-          <input
-            type="date"
-            style={styles.input}
-            value={filtroDataSaidasAte}
-            onChange={e => setFiltroDataSaidasAte(e.target.value)}
-          />
-          <button
-            style={styles.button}
-            onClick={() => {
-              setFiltroDataSaidas("");
-              setFiltroDataSaidasAte("");
-            }}
-            type="button"
-          >
-            Limpar filtro
-          </button>
-
-          <button style={styles.button} onClick={exportPDFSaidas} type="button">
-            📄 PDF Saídas
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ marginTop: 0, marginBottom: 0 }}>📜 Histórico de Saídas</h3>
+          <button style={styles.button} type="button" onClick={() => setSaidasAbertas(prev => !prev)}>
+            {saidasAbertas ? "Ocultar" : "Mostrar"}
           </button>
         </div>
 
-        <table style={styles.tableHist}>
-          <colgroup>
-            <col style={{ width: "34%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "16%" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={styles.thHist}>Produto</th>
-              <th style={styles.thHist}>Unid.</th>
-              <th style={styles.thHist}>Quantidade</th>
-              <th style={styles.thHist}>Data</th>
-              <th style={styles.thHist}>Hora</th>
-              <th style={styles.thHist}>Responsável</th>
-            </tr>
-          </thead>
-          <tbody>
-            {saidasFiltradas.map(s => {
-              const { data, hora } = formatDateTimeParts(s.dataHora);
-              return (
-                <tr key={s.id}>
-                  <td style={styles.tdHist} title={s.produto || ""}>{s.produto || ""}</td>
-                  <td style={styles.tdHist}>{getUnidadeByNome(s.produto)}</td>
-                  <td style={styles.tdHistRight}>{fmtNum(s.quantidade, 3)}</td>
-                  <td style={styles.tdHist}>{data}</td>
-                  <td style={styles.tdHist}>{hora}</td>
-                  <td style={styles.tdHist}>{s.responsavel || "—"}</td>
+        {saidasAbertas && (
+          <>
+            <div style={{ marginBottom: 8, marginTop: 8 }}>
+              <span>De</span>
+              <input
+                type="date"
+                style={styles.input}
+                value={filtroDataSaidas}
+                onChange={e => setFiltroDataSaidas(e.target.value)}
+              />
+              <span>Até</span>
+              <input
+                type="date"
+                style={styles.input}
+                value={filtroDataSaidasAte}
+                onChange={e => setFiltroDataSaidasAte(e.target.value)}
+              />
+              <button
+                style={styles.button}
+                onClick={() => {
+                  setFiltroDataSaidas("");
+                  setFiltroDataSaidasAte("");
+                }}
+                type="button"
+              >
+                Limpar filtro
+              </button>
+
+              <button style={styles.button} onClick={exportPDFSaidas} type="button">
+                📄 PDF Saídas
+              </button>
+            </div>
+
+            <table style={styles.tableHist}>
+              <colgroup>
+                <col style={{ width: "34%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "16%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={styles.thHist}>Produto</th>
+                  <th style={styles.thHist}>Unid.</th>
+                  <th style={styles.thHist}>Quantidade</th>
+                  <th style={styles.thHist}>Data</th>
+                  <th style={styles.thHist}>Hora</th>
+                  <th style={styles.thHist}>Responsável</th>
                 </tr>
-              );
-            })}
-            {saidasFiltradas.length === 0 && (
-              <tr>
-                <td style={styles.tdHist} colSpan={6}>Sem saídas no intervalo.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {saidasFiltradas.map(s => {
+                  const { data, hora } = formatDateTimeParts(s.dataHora);
+                  return (
+                    <tr key={s.id}>
+                      <td style={styles.tdHist} title={s.produto || ""}>{s.produto || ""}</td>
+                      <td style={styles.tdHist}>{getUnidadeByNome(s.produto)}</td>
+                      <td style={styles.tdHistRight}>{fmtNum(s.quantidade, 3)}</td>
+                      <td style={styles.tdHist}>{data}</td>
+                      <td style={styles.tdHist}>{hora}</td>
+                      <td style={styles.tdHist}>{s.responsavel || "—"}</td>
+                    </tr>
+                  );
+                })}
+                {saidasFiltradas.length === 0 && (
+                  <tr>
+                    <td style={styles.tdHist} colSpan={6}>Sem saídas no intervalo.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {!saidasAbertas && (
+          <div style={{ marginTop: 8, opacity: 0.8 }}>
+            {saidasFiltradas.length} saída(s) no intervalo atual.
+          </div>
+        )}
       </div>
     </div>
   );
