@@ -65,6 +65,7 @@ export default function Gerente({ onLogout }) {
   const [entradas, setEntradas] = useState([]);
   const [saidas, setSaidas] = useState([]);
   const [inventarioReal, setInventarioReal] = useState({});
+  const [inventarioRealUpdatedAt, setInventarioRealUpdatedAt] = useState({}); // { produto: "2026-..." }
   const [produtoAberto, setProdutoAberto] = useState(null);
 
   const [produtoNovo, setProdutoNovo] = useState({
@@ -117,9 +118,14 @@ export default function Gerente({ onLogout }) {
     setEntradas(e || []);
     setSaidas(s || []);
 
-    const map = {};
-    r?.forEach(i => (map[i.produto] = i.quantidade));
-    setInventarioReal(map);
+    const mapQtd = {};
+    const mapUpd = {};
+    r?.forEach(i => {
+      mapQtd[i.produto] = i.quantidade;
+      mapUpd[i.produto] = i.updated_at || null;
+    });
+    setInventarioReal(mapQtd);
+    setInventarioRealUpdatedAt(mapUpd);
   }
 
   /* ===== INVENTÁRIO TEÓRICO ===== */
@@ -134,6 +140,46 @@ export default function Gerente({ onLogout }) {
     return inv;
   }, [entradas, saidas]);
 
+  /* ✅ STOCK ATUAL (RIGOROSO) = Real (último inventário) + Entradas após updated_at - Saídas após updated_at */
+  const inventarioAjustado = useMemo(() => {
+    const inv = {};
+    const fallbackMesInicio =
+      (inventarioMes || "").match(/^\d{4}-\d{2}$/) ? `${inventarioMes}-01` : "1970-01-01";
+
+    // base: stock real
+    produtos.forEach(p => {
+      inv[p.nome] = Number(inventarioReal[p.nome] || 0);
+    });
+
+    // entradas após último inventário do produto
+    entradas.forEach(e => {
+      const nome = e.produto;
+      const corte = inventarioRealUpdatedAt[nome]
+        ? String(inventarioRealUpdatedAt[nome]).slice(0, 10)
+        : fallbackMesInicio;
+
+      const d = String(e.datahora || "").slice(0, 10);
+      if (d < corte) return;
+
+      inv[nome] = (inv[nome] || 0) + Number(e.quantidade);
+    });
+
+    // saídas após último inventário do produto
+    saidas.forEach(s => {
+      const nome = s.produto;
+      const corte = inventarioRealUpdatedAt[nome]
+        ? String(inventarioRealUpdatedAt[nome]).slice(0, 10)
+        : fallbackMesInicio;
+
+      const d = String(s.dataHora || "").slice(0, 10);
+      if (d < corte) return;
+
+      inv[nome] = (inv[nome] || 0) - Number(s.quantidade);
+    });
+
+    return inv;
+  }, [produtos, inventarioReal, inventarioRealUpdatedAt, entradas, saidas, inventarioMes]);
+
   /* ✅ LISTA FILTRADA PARA INVENTÁRIO MENSAL (RÁPIDO) */
   const inventarioMensalLista = useMemo(() => {
     const q = inventarioFiltro.trim().toLowerCase();
@@ -146,8 +192,8 @@ export default function Gerente({ onLogout }) {
 
   /* ===== AVISOS + VALOR TOTAL ===== */
   const produtosAbaixoMinimo = useMemo(() => {
-    return produtos.filter(p => (Number(inventarioTeorico[p.nome] || 0)) < Number(p.minimo || 0));
-  }, [produtos, inventarioTeorico]);
+    return produtos.filter(p => (Number(inventarioAjustado[p.nome] || 0)) < Number(p.minimo || 0));
+  }, [produtos, inventarioAjustado]);
 
   const valorTotalStock = useMemo(() => {
     return produtos.reduce((acc, p) => {
@@ -267,6 +313,8 @@ export default function Gerente({ onLogout }) {
   }
 
   async function gravarInventarioMensal() {
+    const nowIso = new Date().toISOString();
+
     // grava em massa no inventario_real, e reflete no Stock real imediatamente
     // (depende de inventario_real.produto ser UNIQUE ou PK para o upsert funcionar bem)
     const rows = produtos
@@ -274,7 +322,7 @@ export default function Gerente({ onLogout }) {
         const raw = inventarioEdicao[p.nome];
         const val = Number(String(raw ?? "").replace(",", "."));
         if (!Number.isFinite(val)) return null;
-        return { produto: p.nome, quantidade: val };
+        return { produto: p.nome, quantidade: val, updated_at: nowIso };
       })
       .filter(Boolean);
 
@@ -323,8 +371,13 @@ export default function Gerente({ onLogout }) {
 
     // atualiza UI
     const nextReal = { ...inventarioReal };
-    rows.forEach(r => (nextReal[r.produto] = r.quantidade));
+    const nextUpd = { ...inventarioRealUpdatedAt };
+    rows.forEach(r => {
+      nextReal[r.produto] = r.quantidade;
+      nextUpd[r.produto] = r.updated_at;
+    });
     setInventarioReal(nextReal);
+    setInventarioRealUpdatedAt(nextUpd);
 
     await fetchTudo();
 
@@ -405,14 +458,14 @@ export default function Gerente({ onLogout }) {
     doc.save(`saidas_${(filtroDataSaidas || "todas")}_a_${(filtroDataSaidasAte || "todas")}.pdf`);
   }
 
-  /* ✅ PDF STOCK */
+  /* ✅ PDF STOCK (AGORA AJUSTADO) */
   function exportPDFStock() {
     if (!produtos.length) return alert("Sem produtos para exportar.");
 
     const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
 
     doc.setFontSize(14);
-    doc.text("Stock (Inventário Teórico)", 40, 40);
+    doc.text("Stock (Ajustado: Real + Movimentos após inventário)", 40, 40);
 
     doc.setFontSize(10);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 40, 60);
@@ -421,7 +474,7 @@ export default function Gerente({ onLogout }) {
       .slice()
       .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""))
       .map(p => {
-        const stock = Number(inventarioTeorico[p.nome] || 0);
+        const stock = Number(inventarioAjustado[p.nome] || 0);
         const preco = Number(p.preco_unit || 0);
         const minimo = Number(p.minimo || 0);
         const valor = stock * preco;
@@ -443,11 +496,17 @@ export default function Gerente({ onLogout }) {
       styles: { fontSize: 9, cellPadding: 4 }
     });
 
+    const totalAjustado = produtos.reduce((acc, p) => {
+      const stock = Number(inventarioAjustado[p.nome] || 0);
+      const preco = Number(p.preco_unit || 0);
+      return acc + stock * preco;
+    }, 0);
+
     const finalY = (doc.lastAutoTable?.finalY || 80) + 20;
     doc.setFontSize(12);
-    doc.text(`Total do stock: ${valorTotalStock.toFixed(2)} €`, 40, finalY);
+    doc.text(`Total do stock (ajustado): ${totalAjustado.toFixed(2)} €`, 40, finalY);
 
-    doc.save("stock_inventario_teorico.pdf");
+    doc.save("stock_ajustado.pdf");
   }
 
   /* ✅ AGRUPAR PRODUTOS POR PROCEDÊNCIA (COLAPSÁVEL) */
@@ -507,8 +566,8 @@ export default function Gerente({ onLogout }) {
               {produtosAbaixoMinimo.map(p => (
                 <tr key={p.nome}>
                   <td style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
-                  <td style={styles.td}>{inventarioTeorico[p.nome] || 0}</td>
-                  <td style={styles.td}>{p.minimo}</td>
+                  <td style={styles.td}>{fmtNum(inventarioAjustado[p.nome] || 0, 3)}</td>
+                  <td style={styles.td}>{fmtNum(p.minimo || 0, 3)}</td>
                 </tr>
               ))}
             </tbody>
@@ -937,39 +996,38 @@ export default function Gerente({ onLogout }) {
                       .map(p => {
                         const stockTeo = Number(inventarioTeorico[p.nome] || 0);
                         const stockReal = Number(inventarioReal[p.nome] || 0);
+                        const stockAjust = Number(inventarioAjustado[p.nome] || 0);
                         const minimo = Number(p.minimo || 0);
                         const preco = Number(p.preco_unit || 0);
-                        const abaixo = stockTeo < minimo;
 
+                        const abaixo = stockAjust < minimo;
                         const aberto = produtoAberto === p.nome;
 
                         return (
                           <>
-                            <tr
-                              key={`${proc}-${p.nome}`}
-                              style={abaixo ? styles.rowBad : undefined}
-                            >
+                            <tr key={`${proc}-${p.nome}`} style={abaixo ? styles.rowBad : undefined}>
                               <td style={styles.td}>{p.nome}</td>
                               <td style={styles.td}>{p.unidade || ""}</td>
                               <td style={styles.tdRight}>{fmtNum(stockTeo, 3)}</td>
 
-                              {/* ✅ Stock real editável inline (blur faz upsert) */}
+                              {/* ✅ Stock real editável inline (blur faz upsert + updated_at) */}
                               <td style={styles.tdRight}>
                                 <input
                                   style={{ ...styles.input, width: 90, textAlign: "right" }}
                                   type="number"
                                   step="0.001"
                                   value={inventarioReal[p.nome] ?? ""}
-                                  onChange={e =>
-                                    setInventarioReal({ ...inventarioReal, [p.nome]: e.target.value })
-                                  }
+                                  onChange={e => setInventarioReal({ ...inventarioReal, [p.nome]: e.target.value })}
                                   onBlur={async () => {
                                     const val = Number(String(inventarioReal[p.nome] ?? "").replace(",", "."));
                                     if (!Number.isFinite(val)) return;
 
+                                    const nowIso = new Date().toISOString();
+
                                     await supabase.from("inventario_real").upsert({
                                       produto: p.nome,
-                                      quantidade: val
+                                      quantidade: val,
+                                      updated_at: nowIso
                                     });
 
                                     fetchTudo();
@@ -1013,7 +1071,7 @@ export default function Gerente({ onLogout }) {
 
                                   {abaixo && (
                                     <span style={{ marginLeft: 10, ...styles.warning }}>
-                                      ⚠ Abaixo do mínimo (teórico)
+                                      ⚠ Abaixo do mínimo (real + movimentos após inventário)
                                     </span>
                                   )}
                                 </td>
