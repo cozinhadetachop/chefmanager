@@ -22,7 +22,54 @@ const styles = {
 
   /* tabela produtos */
   tdRight: { padding: "6px 4px", borderBottom: "1px solid #f0f0f0", textAlign: "right" },
-  rowBad: { backgroundColor: "#fff3f3" }
+  rowBad: { backgroundColor: "#fff3f3" },
+
+  /* ✅ tabela produtos (melhor visual) */
+  tableProdutos: { width: "100%", borderCollapse: "collapse", marginTop: 8, tableLayout: "fixed" },
+  thProdutos: {
+    textAlign: "left",
+    borderBottom: "1px solid #ccc",
+    padding: "10px 8px",
+    fontSize: 13,
+    whiteSpace: "nowrap"
+  },
+  tdProdutos: {
+    padding: "10px 8px",
+    borderBottom: "1px solid #f0f0f0",
+    verticalAlign: "middle"
+  },
+  tdProdutosRight: {
+    padding: "10px 8px",
+    borderBottom: "1px solid #f0f0f0",
+    textAlign: "right",
+    verticalAlign: "middle"
+  },
+  nomeProdutoCell: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+
+  /* ✅ tabelas histórico (mais limpas) */
+  tableHist: { width: "100%", borderCollapse: "collapse", marginTop: 8, tableLayout: "fixed" },
+  thHist: {
+    textAlign: "left",
+    borderBottom: "1px solid #ccc",
+    padding: "8px 6px",
+    fontSize: 13,
+    whiteSpace: "nowrap"
+  },
+  tdHist: {
+    padding: "8px 6px",
+    borderBottom: "1px solid #f0f0f0",
+    verticalAlign: "middle",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  },
+  tdHistRight: {
+    padding: "8px 6px",
+    borderBottom: "1px solid #f0f0f0",
+    textAlign: "right",
+    verticalAlign: "middle",
+    whiteSpace: "nowrap"
+  }
 };
 
 /* ===== Unidades (normalizadas) ===== */
@@ -65,8 +112,11 @@ export default function Gerente({ onLogout }) {
   const [entradas, setEntradas] = useState([]);
   const [saidas, setSaidas] = useState([]);
   const [inventarioReal, setInventarioReal] = useState({});
-  const [inventarioRealUpdatedAt, setInventarioRealUpdatedAt] = useState({}); // { produto: "2026-..." }
+  const [inventarioRealUpdatedAt, setInventarioRealUpdatedAt] = useState({});
   const [produtoAberto, setProdutoAberto] = useState(null);
+
+  /* ✅ Avisos começam fechados */
+  const [avisosAbertos, setAvisosAbertos] = useState(false);
 
   const [produtoNovo, setProdutoNovo] = useState({
     nome: "",
@@ -140,18 +190,16 @@ export default function Gerente({ onLogout }) {
     return inv;
   }, [entradas, saidas]);
 
-  /* ✅ STOCK ATUAL (RIGOROSO) = Real (último inventário) + Entradas após updated_at - Saídas após updated_at */
+  /* ✅ STOCK ATUAL (RIGOROSO) = Real + Entradas após updated_at - Saídas após updated_at */
   const inventarioAjustado = useMemo(() => {
     const inv = {};
     const fallbackMesInicio =
       (inventarioMes || "").match(/^\d{4}-\d{2}$/) ? `${inventarioMes}-01` : "1970-01-01";
 
-    // base: stock real
     produtos.forEach(p => {
       inv[p.nome] = Number(inventarioReal[p.nome] || 0);
     });
 
-    // entradas após último inventário do produto
     entradas.forEach(e => {
       const nome = e.produto;
       const corte = inventarioRealUpdatedAt[nome]
@@ -164,7 +212,6 @@ export default function Gerente({ onLogout }) {
       inv[nome] = (inv[nome] || 0) + Number(e.quantidade);
     });
 
-    // saídas após último inventário do produto
     saidas.forEach(s => {
       const nome = s.produto;
       const corte = inventarioRealUpdatedAt[nome]
@@ -192,10 +239,9 @@ export default function Gerente({ onLogout }) {
 
   /* ===== AVISOS + VALOR TOTAL ===== */
   const produtosAbaixoMinimo = useMemo(() => {
-    return produtos.filter(p => (Number(inventarioAjustado[p.nome] || 0)) < Number(p.minimo || 0));
+    return produtos.filter(p => Number(inventarioAjustado[p.nome] || 0) < Number(p.minimo || 0));
   }, [produtos, inventarioAjustado]);
 
-  /* ✅ AGORA: Valor total calculado com STOCK ATUAL (ajustado) */
   const valorTotalStock = useMemo(() => {
     return produtos.reduce((acc, p) => {
       const stockAtual = Number(inventarioAjustado[p.nome] || 0);
@@ -331,11 +377,11 @@ export default function Gerente({ onLogout }) {
     const negativas = rows
       .map(r => {
         const teo = Number(inventarioTeorico[r.produto] || 0);
-        const dif = r.quantidade - teo;
+        const dif = r.quantidade - teo; // negativa = inventário menor do que o esperado
         return { ...r, teo, dif };
       })
       .filter(x => x.dif < 0)
-      .sort((a, b) => a.dif - b.dif);
+      .sort((a, b) => a.dif - b.dif); // mais negativo primeiro
 
     if (negativas.length > 0) {
       const linhas = negativas
@@ -356,33 +402,20 @@ export default function Gerente({ onLogout }) {
         `\n\nQueres gravar mesmo assim?`;
 
       const ok = window.confirm(msg);
-      if (!ok) return;
+      if (!ok) return; // cancela gravação
     }
 
     const { error } = await supabase.from("inventario_real").upsert(rows);
 
     if (error) {
       console.error(error);
-      return alert(
-        "Erro ao gravar inventário mensal. Vê a consola e confirma se 'produto' é UNIQUE/PK em inventario_real."
-      );
+      return alert("Erro ao gravar inventário mensal. Vê a consola e confirma se 'produto' é UNIQUE/PK em inventario_real.");
     }
-
-    const nextReal = { ...inventarioReal };
-    const nextUpd = { ...inventarioRealUpdatedAt };
-    rows.forEach(r => {
-      nextReal[r.produto] = r.quantidade;
-      nextUpd[r.produto] = r.updated_at;
-    });
-    setInventarioReal(nextReal);
-    setInventarioRealUpdatedAt(nextUpd);
 
     await fetchTudo();
 
     if (negativas.length > 0) {
-      alert(
-        `✅ Inventário gravado (mês: ${inventarioMes}). Atenção: houve ${negativas.length} discrepância(s) negativa(s).`
-      );
+      alert(`✅ Inventário gravado (mês: ${inventarioMes}). Atenção: houve ${negativas.length} discrepância(s) negativa(s).`);
     } else {
       alert(`✅ Inventário gravado (mês: ${inventarioMes}). Já aparece em Stock real.`);
     }
@@ -539,6 +572,14 @@ export default function Gerente({ onLogout }) {
 
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
+  const entradasFiltradas = useMemo(() => {
+    return entradas.filter(e => dentroIntervalo(e.datahora, filtroEntradaDe, filtroEntradaAte));
+  }, [entradas, filtroEntradaDe, filtroEntradaAte]);
+
+  const saidasFiltradas = useMemo(() => {
+    return saidas.filter(s => dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte));
+  }, [saidas, filtroDataSaidas, filtroDataSaidasAte]);
+
   return (
     <div style={styles.app}>
       <button onClick={onLogout} style={{ ...styles.button, ...styles.danger }}>
@@ -550,35 +591,52 @@ export default function Gerente({ onLogout }) {
       {/* ===== AVISOS (BASEADOS NO STOCK ATUAL) ===== */}
       {produtosAbaixoMinimo.length > 0 && (
         <div style={{ ...styles.card, borderColor: "#e53935" }}>
-          <h3>⚠ Avisos de Stock</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>⚠ Avisos de Stock</h3>
 
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Produto</th>
-                <th style={styles.th}>Stock atual</th>
-                <th style={styles.th}>Stock mínimo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {produtosAbaixoMinimo.map(p => {
-                const atual = Number(inventarioAjustado[p.nome] || 0);
-                const minimo = Number(p.minimo || 0);
+            <button
+              style={styles.button}
+              type="button"
+              onClick={() => setAvisosAbertos(prev => !prev)}
+            >
+              {avisosAbertos ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
 
-                return (
-                  <tr key={p.nome}>
-                    <td style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
-                    <td style={styles.td}>{fmtNum(atual, 3)}</td>
-                    <td style={styles.td}>{fmtNum(minimo, 3)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {avisosAbertos && (
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Produto</th>
+                  <th style={styles.th}>Stock atual</th>
+                  <th style={styles.th}>Stock mínimo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {produtosAbaixoMinimo.map(p => {
+                  const atual = Number(inventarioAjustado[p.nome] || 0);
+                  const minimo = Number(p.minimo || 0);
+
+                  return (
+                    <tr key={p.nome}>
+                      <td style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
+                      <td style={styles.td}>{fmtNum(atual, 3)}</td>
+                      <td style={styles.td}>{fmtNum(minimo, 3)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {!avisosAbertos && (
+            <div style={{ marginTop: 8, opacity: 0.8 }}>
+              {produtosAbaixoMinimo.length} produto(s) abaixo do mínimo.
+            </div>
+          )}
         </div>
       )}
 
-      {/* ✅ AGORA É O TOTAL DO STOCK ATUAL */}
       <h3>💰 Valor total de stock: {valorTotalStock.toFixed(2)} €</h3>
 
       {/* ✅ BOTÃO PDF STOCK */}
@@ -744,6 +802,7 @@ export default function Gerente({ onLogout }) {
           required
         />
 
+        {/* ✅ unidade normalizada (select, não texto livre) */}
         <select
           style={styles.input}
           value={produtoNovo.unidade || ""}
@@ -786,7 +845,9 @@ export default function Gerente({ onLogout }) {
           required
         />
 
-        <button style={styles.button}>{produtoNovo.id ? "Guardar alterações" : "Adicionar"}</button>
+        <button style={styles.button}>
+          {produtoNovo.id ? "Guardar alterações" : "Adicionar"}
+        </button>
       </form>
 
       {/* ===== ENTRADA DE STOCK ===== */}
@@ -834,82 +895,7 @@ export default function Gerente({ onLogout }) {
         <button style={styles.button}>Registar</button>
       </form>
 
-      {/* ===== HISTÓRICO DE ENTRADAS (FILTRO INTERVALO) ===== */}
-      <h3>📜 Histórico de Entradas</h3>
-      <div style={{ marginBottom: 8 }}>
-        <span>De</span>
-        <input type="date" style={styles.input} value={filtroEntradaDe} onChange={e => setFiltroEntradaDe(e.target.value)} />
-        <span>Até</span>
-        <input type="date" style={styles.input} value={filtroEntradaAte} onChange={e => setFiltroEntradaAte(e.target.value)} />
-        <button
-          style={styles.button}
-          onClick={() => {
-            setFiltroEntradaDe("");
-            setFiltroEntradaAte("");
-          }}
-          type="button"
-        >
-          Limpar filtro
-        </button>
-
-        <button style={styles.button} onClick={exportPDFEntradas} type="button">
-          📄 PDF Entradas
-        </button>
-      </div>
-
-      {entradas
-        .filter(e => dentroIntervalo(e.datahora, filtroEntradaDe, filtroEntradaAte))
-        .map(e => {
-          const produtoInfo = produtos.find(p => p.nome === e.produto);
-          const data = new Date(e.datahora);
-
-          return (
-            <div key={e.id} style={{ marginBottom: 4 }}>
-              {e.produto} ({produtoInfo?.unidade || ""}) — {e.quantidade} |{" "}
-              {data.toLocaleDateString()} {data.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} | Gerente
-            </div>
-          );
-        })}
-
-      {/* ===== HISTÓRICO DE SAÍDAS (FILTRO INTERVALO) ===== */}
-      <h3>📜 Histórico de Saídas</h3>
-      <div style={{ marginBottom: 8 }}>
-        <span>De</span>
-        <input type="date" style={styles.input} value={filtroDataSaidas} onChange={e => setFiltroDataSaidas(e.target.value)} />
-        <span>Até</span>
-        <input type="date" style={styles.input} value={filtroDataSaidasAte} onChange={e => setFiltroDataSaidasAte(e.target.value)} />
-        <button
-          style={styles.button}
-          onClick={() => {
-            setFiltroDataSaidas("");
-            setFiltroDataSaidasAte("");
-          }}
-          type="button"
-        >
-          Limpar filtro
-        </button>
-
-        <button style={styles.button} onClick={exportPDFSaidas} type="button">
-          📄 PDF Saídas
-        </button>
-      </div>
-
-      {saidas
-        .filter(s => dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte))
-        .map(s => {
-          const produtoInfo = produtos.find(p => p.nome === s.produto);
-          const data = new Date(s.dataHora);
-
-          return (
-            <div key={s.id} style={{ marginBottom: 4 }}>
-              {s.produto} ({produtoInfo?.unidade || ""}) — {s.quantidade} |{" "}
-              {data.toLocaleDateString()} {data.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} |{" "}
-              {s.responsavel || "—"}
-            </div>
-          );
-        })}
-
-      {/* ===== LISTA DE PRODUTOS (✅ CAMPOS COMPLETOS) ===== */}
+      {/* ===== LISTA DE PRODUTOS (✅ CAMPOS COMPLETOS + MAIS BONITO) ===== */}
       <h3>📝 Produtos</h3>
 
       <div style={{ marginBottom: 8 }}>
@@ -956,19 +942,32 @@ export default function Gerente({ onLogout }) {
 
             {aberta && (
               <div style={{ marginLeft: 8, marginTop: 8 }}>
-                <table style={styles.table}>
+                <table style={styles.tableProdutos}>
+                  <colgroup>
+                    <col style={{ width: "26%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "12%" }} />
+                  </colgroup>
+
                   <thead>
                     <tr>
-                      <th style={styles.th}>Nome</th>
-                      <th style={styles.th}>Unidade</th>
-                      <th style={styles.th}>Stock teórico</th>
-                      <th style={styles.th}>Stock real</th>
-                      <th style={styles.th}>Stock atual</th>
-                      <th style={styles.th}>Stock mínimo</th>
-                      <th style={styles.th}>Preço unit.</th>
-                      <th style={styles.th}></th>
+                      <th style={styles.thProdutos}>Nome</th>
+                      <th style={styles.thProdutos}>Unidade</th>
+                      <th style={styles.thProdutos}>Stock teórico</th>
+                      {/* ✅ ALTERADO: Stock real -> Inventário inicial */}
+                      <th style={styles.thProdutos}>Inventário inicial</th>
+                      <th style={styles.thProdutos}>Stock atual</th>
+                      <th style={styles.thProdutos}>Stock mínimo</th>
+                      <th style={styles.thProdutos}>Preço unit.</th>
+                      <th style={styles.thProdutos}></th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {listaFiltrada
                       .slice()
@@ -985,13 +984,22 @@ export default function Gerente({ onLogout }) {
                         return (
                           <>
                             <tr key={`${proc}-${p.nome}`} style={abaixo ? styles.rowBad : undefined}>
-                              <td style={styles.td}>{p.nome}</td>
-                              <td style={styles.td}>{p.unidade || ""}</td>
-                              <td style={styles.tdRight}>{fmtNum(stockTeo, 3)}</td>
+                              <td style={{ ...styles.tdProdutos, ...styles.nomeProdutoCell }} title={p.nome}>
+                                {p.nome}
+                              </td>
 
-                              <td style={styles.tdRight}>
+                              <td style={styles.tdProdutos}>{p.unidade || ""}</td>
+                              <td style={styles.tdProdutosRight}>{fmtNum(stockTeo, 3)}</td>
+
+                              {/* ✅ Stock real editável inline (blur faz upsert) */}
+                              <td style={styles.tdProdutosRight}>
                                 <input
-                                  style={{ ...styles.input, width: 90, textAlign: "right" }}
+                                  style={{
+                                    ...styles.input,
+                                    width: "100%",
+                                    textAlign: "right",
+                                    boxSizing: "border-box"
+                                  }}
                                   type="number"
                                   step="0.001"
                                   value={inventarioReal[p.nome] ?? ""}
@@ -1014,14 +1022,13 @@ export default function Gerente({ onLogout }) {
                                 />
                               </td>
 
-                              <td style={styles.tdRight}>{fmtNum(stockAjust, 3)}</td>
+                              <td style={styles.tdProdutosRight}>{fmtNum(stockAjust, 3)}</td>
+                              <td style={styles.tdProdutosRight}>{fmtNum(minimo, 3)}</td>
+                              <td style={styles.tdProdutosRight}>{fmtNum(preco, 2)} €</td>
 
-                              <td style={styles.tdRight}>{fmtNum(minimo, 3)}</td>
-                              <td style={styles.tdRight}>{fmtNum(preco, 2)} €</td>
-
-                              <td style={styles.tdRight}>
+                              <td style={styles.tdProdutosRight}>
                                 <button
-                                  style={styles.button}
+                                  style={{ ...styles.button, width: "100%" }}
                                   type="button"
                                   onClick={() => setProdutoAberto(aberto ? null : p.nome)}
                                 >
@@ -1032,7 +1039,7 @@ export default function Gerente({ onLogout }) {
 
                             {aberto && (
                               <tr key={`${proc}-${p.nome}-acoes`}>
-                                <td style={styles.td} colSpan={8}>
+                                <td style={styles.tdProdutos} colSpan={8}>
                                   <button style={styles.button} onClick={() => setProdutoNovo(p)} type="button">
                                     ✏ Editar
                                   </button>
@@ -1067,6 +1074,160 @@ export default function Gerente({ onLogout }) {
           </div>
         );
       })}
+
+      {/* ✅ HISTÓRICO ENTRADAS (CARD + TABELA) */}
+      <div style={styles.card}>
+        <h3 style={{ marginTop: 0 }}>📜 Histórico de Entradas</h3>
+
+        <div style={{ marginBottom: 8 }}>
+          <span>De</span>
+          <input
+            type="date"
+            style={styles.input}
+            value={filtroEntradaDe}
+            onChange={e => setFiltroEntradaDe(e.target.value)}
+          />
+          <span>Até</span>
+          <input
+            type="date"
+            style={styles.input}
+            value={filtroEntradaAte}
+            onChange={e => setFiltroEntradaAte(e.target.value)}
+          />
+          <button
+            style={styles.button}
+            onClick={() => {
+              setFiltroEntradaDe("");
+              setFiltroEntradaAte("");
+            }}
+            type="button"
+          >
+            Limpar filtro
+          </button>
+
+          <button style={styles.button} onClick={exportPDFEntradas} type="button">
+            📄 PDF Entradas
+          </button>
+        </div>
+
+        <table style={styles.tableHist}>
+          <colgroup>
+            <col style={{ width: "34%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "16%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={styles.thHist}>Produto</th>
+              <th style={styles.thHist}>Unid.</th>
+              <th style={styles.thHist}>Quantidade</th>
+              <th style={styles.thHist}>Data</th>
+              <th style={styles.thHist}>Hora</th>
+              <th style={styles.thHist}>Responsável</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entradasFiltradas.map(e => {
+              const { data, hora } = formatDateTimeParts(e.datahora);
+              return (
+                <tr key={e.id}>
+                  <td style={styles.tdHist} title={e.produto || ""}>{e.produto || ""}</td>
+                  <td style={styles.tdHist}>{getUnidadeByNome(e.produto)}</td>
+                  <td style={styles.tdHistRight}>{fmtNum(e.quantidade, 3)}</td>
+                  <td style={styles.tdHist}>{data}</td>
+                  <td style={styles.tdHist}>{hora}</td>
+                  <td style={styles.tdHist}>Gerente</td>
+                </tr>
+              );
+            })}
+            {entradasFiltradas.length === 0 && (
+              <tr>
+                <td style={styles.tdHist} colSpan={6}>Sem entradas no intervalo.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ✅ HISTÓRICO SAÍDAS (CARD + TABELA) */}
+      <div style={styles.card}>
+        <h3 style={{ marginTop: 0 }}>📜 Histórico de Saídas</h3>
+
+        <div style={{ marginBottom: 8 }}>
+          <span>De</span>
+          <input
+            type="date"
+            style={styles.input}
+            value={filtroDataSaidas}
+            onChange={e => setFiltroDataSaidas(e.target.value)}
+          />
+          <span>Até</span>
+          <input
+            type="date"
+            style={styles.input}
+            value={filtroDataSaidasAte}
+            onChange={e => setFiltroDataSaidasAte(e.target.value)}
+          />
+          <button
+            style={styles.button}
+            onClick={() => {
+              setFiltroDataSaidas("");
+              setFiltroDataSaidasAte("");
+            }}
+            type="button"
+          >
+            Limpar filtro
+          </button>
+
+          <button style={styles.button} onClick={exportPDFSaidas} type="button">
+            📄 PDF Saídas
+          </button>
+        </div>
+
+        <table style={styles.tableHist}>
+          <colgroup>
+            <col style={{ width: "34%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "16%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={styles.thHist}>Produto</th>
+              <th style={styles.thHist}>Unid.</th>
+              <th style={styles.thHist}>Quantidade</th>
+              <th style={styles.thHist}>Data</th>
+              <th style={styles.thHist}>Hora</th>
+              <th style={styles.thHist}>Responsável</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saidasFiltradas.map(s => {
+              const { data, hora } = formatDateTimeParts(s.dataHora);
+              return (
+                <tr key={s.id}>
+                  <td style={styles.tdHist} title={s.produto || ""}>{s.produto || ""}</td>
+                  <td style={styles.tdHist}>{getUnidadeByNome(s.produto)}</td>
+                  <td style={styles.tdHistRight}>{fmtNum(s.quantidade, 3)}</td>
+                  <td style={styles.tdHist}>{data}</td>
+                  <td style={styles.tdHist}>{hora}</td>
+                  <td style={styles.tdHist}>{s.responsavel || "—"}</td>
+                </tr>
+              );
+            })}
+            {saidasFiltradas.length === 0 && (
+              <tr>
+                <td style={styles.tdHist} colSpan={6}>Sem saídas no intervalo.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
