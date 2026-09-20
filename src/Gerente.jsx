@@ -135,6 +135,7 @@ export default function Gerente({ onLogout }) {
     quantidade: "",
     datahora: new Date().toISOString()
   });
+  const [pesquisaEntrada, setPesquisaEntrada] = useState("");
 
   /* ✅ INVENTÁRIO MENSAL (RÁPIDO) */
   const [modoInventarioMensal, setModoInventarioMensal] = useState(false);
@@ -153,6 +154,16 @@ export default function Gerente({ onLogout }) {
   /* ✅ ORGANIZAÇÃO PRODUTOS (COLAPSÁVEL + PESQUISA) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
   const [procedenciasAbertas, setProcedenciasAbertas] = useState({}); // { "Makro": true, ... }
+
+  const produtosEntradaFiltrados = useMemo(() => {
+    const termo = pesquisaEntrada.trim().toLocaleLowerCase("pt-PT");
+    if (!termo) return produtos;
+    return produtos.filter(produto =>
+      `${produto.nome || ""} ${produto.procedencia || ""}`
+        .toLocaleLowerCase("pt-PT")
+        .includes(termo)
+    );
+  }, [produtos, pesquisaEntrada]);
 
   /* ===== FETCH ===== */
   useEffect(() => {
@@ -866,9 +877,18 @@ export default function Gerente({ onLogout }) {
 
           setEntradas(prev => [data?.[0], ...prev].filter(Boolean));
           setEntradaNova({ produto: "", quantidade: "", datahora: new Date().toISOString() });
+          setPesquisaEntrada("");
           fetchTudo();
         }}
       >
+        <input
+          style={styles.input}
+          type="search"
+          placeholder="Pesquisar produto…"
+          aria-label="Pesquisar produto para entrada de stock"
+          value={pesquisaEntrada}
+          onChange={e => setPesquisaEntrada(e.target.value)}
+        />
         <select
           style={styles.input}
           value={entradaNova.produto}
@@ -876,12 +896,15 @@ export default function Gerente({ onLogout }) {
           required
         >
           <option value="">Produto</option>
-          {produtos.map(p => (
+          {produtosEntradaFiltrados.map(p => (
             <option key={p.nome} value={p.nome}>
               {p.nome} ({p.unidade})
             </option>
           ))}
         </select>
+        {!!pesquisaEntrada && !produtosEntradaFiltrados.length && (
+          <div style={{ marginBottom: 8, color: "#666" }}>Nenhum produto encontrado.</div>
+        )}
 
         <input
           style={styles.input}
