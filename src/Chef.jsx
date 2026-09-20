@@ -1,367 +1,347 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 
-const colors = {
-  green: "#536b45",
-  greenDark: "#34452d",
-  cream: "#f7f5ef",
-  border: "#d9ddd4",
-  red: "#b42318",
-  redSoft: "#fff1f0"
+const cores = {
+  verde: "#536b45",
+  verdeEscuro: "#34452d",
+  creme: "#f7f5ef",
+  borda: "#d9ddd4",
+  vermelho: "#b42318",
+  vermelhoSuave: "#fff1f0",
+  amareloSuave: "#fff8e1",
+  cinzento: "#667064"
 };
 
-const styles = {
-  app: {
-    minHeight: "100vh",
-    padding: 16,
-    boxSizing: "border-box",
-    fontFamily: "Arial, sans-serif",
-    color: "#252b23",
-    background: colors.cream
-  },
-  shell: { maxWidth: 900, margin: "0 auto" },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 16
-  },
-  title: { margin: 0, fontSize: 24 },
-  subtitle: { margin: "4px 0 0", color: "#647060", fontSize: 14 },
-  tabs: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-    gap: 8,
-    marginBottom: 16
-  },
-  tab: {
-    minHeight: 48,
-    padding: "10px 12px",
-    border: `1px solid ${colors.border}`,
-    borderRadius: 10,
-    background: "white",
-    cursor: "pointer",
-    fontWeight: 700
-  },
-  activeTab: { background: colors.green, borderColor: colors.green, color: "white" },
-  card: {
-    padding: 16,
-    marginBottom: 12,
-    border: `1px solid ${colors.border}`,
-    borderRadius: 12,
-    background: "white"
-  },
-  summary: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-    gap: 10,
-    marginBottom: 12
-  },
-  summaryCard: {
-    padding: 14,
-    border: `1px solid ${colors.border}`,
-    borderRadius: 12,
-    background: "white"
-  },
-  input: {
-    width: "100%",
-    minHeight: 44,
-    padding: "10px 12px",
-    boxSizing: "border-box",
-    border: `1px solid ${colors.border}`,
-    borderRadius: 8,
-    fontSize: 16,
-    background: "white"
-  },
-  form: { display: "grid", gap: 10, maxWidth: 560 },
-  button: {
-    minHeight: 44,
-    padding: "10px 14px",
-    border: 0,
-    borderRadius: 8,
-    background: colors.green,
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 700
-  },
-  logout: {
-    minHeight: 40,
-    padding: "8px 12px",
-    border: `1px solid ${colors.border}`,
-    borderRadius: 8,
-    background: "white",
-    cursor: "pointer"
-  },
-  tableWrap: { overflowX: "auto" },
-  table: { width: "100%", borderCollapse: "collapse", minWidth: 560 },
-  th: { padding: "10px 8px", textAlign: "left", borderBottom: `2px solid ${colors.border}` },
-  td: { padding: "10px 8px", borderBottom: `1px solid ${colors.border}` },
-  tdRight: { padding: "10px 8px", textAlign: "right", borderBottom: `1px solid ${colors.border}` },
-  warningRow: { background: colors.redSoft },
-  error: { color: colors.red, fontWeight: 700 }
+const estilos = {
+  app: { minHeight: "100vh", padding: 16, boxSizing: "border-box", fontFamily: "Arial, sans-serif", color: "#252b23", background: cores.creme },
+  shell: { maxWidth: 980, margin: "0 auto" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16 },
+  titulo: { margin: 0, fontSize: 24 },
+  subtitulo: { margin: "4px 0 0", color: cores.cinzento, fontSize: 14 },
+  grelha: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 },
+  acao: { minHeight: 115, padding: 16, border: `1px solid ${cores.borda}`, borderRadius: 14, background: "white", cursor: "pointer", textAlign: "left", fontSize: 17, fontWeight: 700 },
+  card: { padding: 16, marginBottom: 12, border: `1px solid ${cores.borda}`, borderRadius: 14, background: "white" },
+  input: { width: "100%", minHeight: 46, padding: "10px 12px", boxSizing: "border-box", border: `1px solid ${cores.borda}`, borderRadius: 9, fontSize: 16, background: "white" },
+  formLinha: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, alignItems: "end" },
+  botao: { minHeight: 46, padding: "10px 14px", border: 0, borderRadius: 9, background: cores.verde, color: "white", cursor: "pointer", fontWeight: 700 },
+  secundario: { minHeight: 42, padding: "8px 12px", border: `1px solid ${cores.borda}`, borderRadius: 9, background: "white", cursor: "pointer", fontWeight: 700 },
+  perigo: { color: cores.vermelho, borderColor: "#efc1bd", background: "white" },
+  tabelaWrap: { overflowX: "auto" },
+  tabela: { width: "100%", borderCollapse: "collapse", minWidth: 680 },
+  th: { padding: "10px 8px", textAlign: "left", borderBottom: `2px solid ${cores.borda}`, fontSize: 13 },
+  td: { padding: "10px 8px", borderBottom: `1px solid ${cores.borda}`, verticalAlign: "middle" },
+  direita: { textAlign: "right" },
+  alerta: { background: cores.vermelhoSuave },
+  nota: { padding: 12, borderRadius: 10, background: cores.amareloSuave, color: "#684f00" },
+  erro: { padding: 12, borderRadius: 10, background: cores.vermelhoSuave, color: cores.vermelho, fontWeight: 700 },
+  etiqueta: { display: "block", marginBottom: 5, fontSize: 13, fontWeight: 700, color: cores.cinzento }
 };
 
-function toNumber(value) {
-  return Number(String(value ?? "").replace(",", "."));
+function numero(valor) {
+  const n = Number(String(valor ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : NaN;
 }
 
-function formatNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number)
-    ? number.toLocaleString("pt-PT", { maximumFractionDigits: 3 })
-    : "0";
+function formatarNumero(valor) {
+  const n = Number(valor);
+  return Number.isFinite(n) ? n.toLocaleString("pt-PT", { maximumFractionDigits: 3 }) : "0";
+}
+
+function formatarPreco(valor) {
+  const n = Number(valor);
+  return Number.isFinite(n) ? n.toLocaleString("pt-PT", { style: "currency", currency: "EUR" }) : "—";
+}
+
+function idLinha() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export default function Chef({ onLogout }) {
-  const [area, setArea] = useState("stock");
+  const [area, setArea] = useState("inicio");
   const [produtos, setProdutos] = useState([]);
-  const [entradas, setEntradas] = useState([]);
-  const [saidas, setSaidas] = useState([]);
-  const [inventarioReal, setInventarioReal] = useState({});
-  const [inventarioAtualizadoEm, setInventarioAtualizadoEm] = useState({});
   const [pesquisa, setPesquisa] = useState("");
   const [aCarregar, setACarregar] = useState(true);
   const [erro, setErro] = useState("");
 
-  const [entrada, setEntrada] = useState({ produto: "", quantidade: "" });
-  const [saida, setSaida] = useState({ produto: "", quantidade: "", responsavel: "" });
-  const [contagens, setContagens] = useState({});
+  const [entradaManual, setEntradaManual] = useState({ produto: "", quantidade: "" });
+  const [entradas, setEntradas] = useState([]);
+  const [saidaManual, setSaidaManual] = useState({ produto: "", quantidade: "" });
+  const [saidas, setSaidas] = useState([]);
+  const [aGuardar, setAGuardar] = useState(false);
+
+  const [fotografias, setFotografias] = useState([]);
+  const [linhasFatura, setLinhasFatura] = useState([]);
+  const [aLer, setALer] = useState(false);
+  const [progresso, setProgresso] = useState(0);
 
   useEffect(() => {
-    carregarDados();
+    carregarStock();
   }, []);
 
-  async function carregarDados() {
+  async function carregarStock() {
     setACarregar(true);
     setErro("");
+    const { data, error } = await supabase.rpc("chef_stock_atual");
 
-    const [produtosRes, entradasRes, saidasRes, inventarioRes] = await Promise.all([
-      supabase.from("produtos").select("*").order("nome"),
-      supabase.from("entradas").select("*").order("datahora", { ascending: false }),
-      supabase.from("saidas").select("*").order("dataHora", { ascending: false }),
-      supabase.from("inventario_real").select("*")
-    ]);
-
-    const falha = [produtosRes, entradasRes, saidasRes, inventarioRes].find(r => r.error);
-    if (falha) {
-      console.error(falha.error);
-      setErro("Não foi possível carregar os dados. Verifica a ligação à internet.");
+    if (error) {
+      console.error(error);
+      setErro("Não foi possível carregar o stock. Tenta novamente.");
       setACarregar(false);
       return;
     }
 
-    setProdutos(produtosRes.data || []);
-    setEntradas(entradasRes.data || []);
-    setSaidas(saidasRes.data || []);
-
-    const quantidades = {};
-    const datas = {};
-    (inventarioRes.data || []).forEach(item => {
-      quantidades[item.produto] = Number(item.quantidade || 0);
-      datas[item.produto] = item.updated_at || null;
-    });
-    setInventarioReal(quantidades);
-    setInventarioAtualizadoEm(datas);
+    const lista = Array.isArray(data) ? data : [];
+    setProdutos(lista.sort((a, b) => String(a.nome).localeCompare(String(b.nome))));
     setACarregar(false);
   }
 
-  const stockAtual = useMemo(() => {
-    const stock = {};
-
-    produtos.forEach(produto => {
-      const nome = produto.nome;
-      const temContagem = Object.prototype.hasOwnProperty.call(inventarioReal, nome);
-      const corte = inventarioAtualizadoEm[nome] ? new Date(inventarioAtualizadoEm[nome]) : null;
-      let quantidade = temContagem ? Number(inventarioReal[nome] || 0) : 0;
-
-      entradas.forEach(movimento => {
-        if (movimento.produto !== nome) return;
-        if (corte && new Date(movimento.datahora) < corte) return;
-        quantidade += Number(movimento.quantidade || 0);
-      });
-
-      saidas.forEach(movimento => {
-        if (movimento.produto !== nome) return;
-        if (corte && new Date(movimento.dataHora) < corte) return;
-        quantidade -= Number(movimento.quantidade || 0);
-      });
-
-      stock[nome] = quantidade;
-    });
-
-    return stock;
-  }, [produtos, entradas, saidas, inventarioReal, inventarioAtualizadoEm]);
-
   const produtosFiltrados = useMemo(() => {
     const termo = pesquisa.trim().toLowerCase();
-    return produtos.filter(p => !termo || (p.nome || "").toLowerCase().includes(termo));
+    return produtos.filter(produto => {
+      const texto = `${produto.nome || ""} ${produto.procedencia || ""}`.toLowerCase();
+      return !termo || texto.includes(termo);
+    });
   }, [produtos, pesquisa]);
 
-  const abaixoDoMinimo = useMemo(
-    () => produtos.filter(p => Number(stockAtual[p.nome] || 0) < Number(p.minimo || 0)),
-    [produtos, stockAtual]
+  const abaixoMinimo = useMemo(
+    () => produtos
+      .filter(p => Number(p.stock_atual || 0) < Number(p.minimo || 0))
+      .sort((a, b) => Number(a.stock_atual || 0) - Number(b.stock_atual || 0)),
+    [produtos]
   );
 
-  async function registarEntrada(event) {
+  function mudarArea(novaArea) {
+    setArea(novaArea);
+    setPesquisa("");
+    setErro("");
+  }
+
+  function adicionarEntradaManual(event) {
     event.preventDefault();
-    const quantidade = toNumber(entrada.quantidade);
-    const produto = produtos.find(p => p.nome === entrada.produto);
+    const produto = produtos.find(p => p.nome === entradaManual.produto);
+    const quantidade = numero(entradaManual.quantidade);
+    if (!produto || !Number.isFinite(quantidade) || quantidade <= 0) {
+      alert("Seleciona um produto e indica uma quantidade válida.");
+      return;
+    }
+    setEntradas(lista => [...lista, { id: idLinha(), produto: produto.nome, quantidade, precoFatura: "" }]);
+    setEntradaManual({ produto: "", quantidade: "" });
+  }
+
+  function adicionarSaidaManual(event) {
+    event.preventDefault();
+    const produto = produtos.find(p => p.nome === saidaManual.produto);
+    const quantidade = numero(saidaManual.quantidade);
     if (!produto || !Number.isFinite(quantidade) || quantidade <= 0) {
       alert("Seleciona um produto e indica uma quantidade válida.");
       return;
     }
 
-    const { error } = await supabase.from("entradas").insert([{
-      produto: produto.nome,
-      quantidade,
-      datahora: new Date().toISOString()
-    }]);
-
-    if (error) {
-      console.error(error);
-      alert("Não foi possível registar a entrada.");
+    const jaAdicionado = saidas
+      .filter(item => item.produto === produto.nome)
+      .reduce((total, item) => total + Number(item.quantidade), 0);
+    if (jaAdicionado + quantidade > Number(produto.stock_atual || 0)) {
+      alert("Quantidade superior ao stock disponível. Informe o gerente.");
       return;
     }
 
-    setEntrada({ produto: "", quantidade: "" });
-    await carregarDados();
-    alert("Entrada registada com sucesso.");
+    setSaidas(lista => [...lista, { id: idLinha(), produto: produto.nome, quantidade }]);
+    setSaidaManual({ produto: "", quantidade: "" });
   }
 
-  async function registarSaida(event) {
-    event.preventDefault();
-    const quantidade = toNumber(saida.quantidade);
-    const produto = produtos.find(p => p.nome === saida.produto);
-    if (!produto || !Number.isFinite(quantidade) || quantidade <= 0 || !saida.responsavel.trim()) {
-      alert("Preenche o produto, a quantidade e o responsável.");
-      return;
-    }
-
-    const { error } = await supabase.from("saidas").insert([{
-      produto: produto.nome,
-      quantidade,
-      unidade: produto.unidade,
-      setor: "Cozinha",
-      dataHora: new Date().toISOString(),
-      responsavel: saida.responsavel.trim()
-    }]);
-
+  async function confirmarEntradas() {
+    if (!entradas.length) return;
+    if (!window.confirm(`Confirmar ${entradas.length} entrada(s) de stock?`)) return;
+    setAGuardar(true);
+    const movimentos = entradas.map(item => ({ produto: item.produto, quantidade: Number(item.quantidade) }));
+    const { error } = await supabase.rpc("chef_registar_entradas", { p_movimentos: movimentos });
+    setAGuardar(false);
     if (error) {
       console.error(error);
-      alert("Não foi possível registar a saída.");
+      alert("Não foi possível registar as entradas.");
       return;
     }
-
-    setSaida({ produto: "", quantidade: "", responsavel: "" });
-    await carregarDados();
-    alert("Saída registada com sucesso.");
+    setEntradas([]);
+    await carregarStock();
+    alert("Entradas registadas com sucesso.");
   }
 
-  async function guardarInventario(event) {
-    event.preventDefault();
-    const dataAtualizacao = new Date().toISOString();
-    const linhas = Object.entries(contagens)
-      .filter(([, valor]) => String(valor).trim() !== "")
-      .map(([produto, valor]) => ({ produto, quantidade: toNumber(valor), updated_at: dataAtualizacao }))
-      .filter(item => Number.isFinite(item.quantidade) && item.quantidade >= 0);
-
-    if (!linhas.length) {
-      alert("Introduz pelo menos uma contagem válida.");
+  async function confirmarSaidas() {
+    if (!saidas.length) return;
+    const ultrapassaStock = saidas.some(item => {
+      const produto = produtos.find(p => p.nome === item.produto);
+      const total = saidas.filter(s => s.produto === item.produto).reduce((soma, s) => soma + Number(s.quantidade), 0);
+      return !produto || total > Number(produto.stock_atual || 0);
+    });
+    if (ultrapassaStock) {
+      alert("Quantidade superior ao stock disponível. Informe o gerente.");
       return;
     }
-
-    const { error } = await supabase.from("inventario_real").upsert(linhas);
+    if (!window.confirm(`Confirmar ${saidas.length} saída(s) de stock?`)) return;
+    setAGuardar(true);
+    const movimentos = saidas.map(item => ({ produto: item.produto, quantidade: Number(item.quantidade) }));
+    const { error } = await supabase.rpc("chef_registar_saidas", { p_movimentos: movimentos });
+    setAGuardar(false);
     if (error) {
       console.error(error);
-      alert("Não foi possível guardar o inventário.");
+      alert(error.message?.includes("STOCK_INSUFICIENTE")
+        ? "Quantidade superior ao stock disponível. Informe o gerente."
+        : "Não foi possível registar as saídas.");
       return;
     }
-
-    setContagens({});
-    await carregarDados();
-    alert("Inventário atualizado com sucesso.");
+    setSaidas([]);
+    await carregarStock();
+    alert("Saídas registadas com sucesso.");
   }
 
-  const tabs = [
-    ["stock", "📦 Stock"],
-    ["entrada", "➕ Entrada"],
-    ["saida", "➖ Saída"],
-    ["inventario", "📝 Inventário"]
-  ];
+  function juntarFotografias(event) {
+    const novas = Array.from(event.target.files || []).filter(file => file.type.startsWith("image/"));
+    setFotografias(atuais => [...atuais, ...novas].slice(0, 10));
+    event.target.value = "";
+  }
+
+  async function lerFatura() {
+    if (!fotografias.length) {
+      alert("Adiciona pelo menos uma fotografia.");
+      return;
+    }
+    setALer(true);
+    setProgresso(0);
+    setLinhasFatura([]);
+    try {
+      const { lerFotografias } = await import("./invoiceOcr");
+      const linhas = await lerFotografias(fotografias, produtos, setProgresso);
+      setLinhasFatura(linhas);
+      if (!linhas.length) alert("Não foi possível identificar linhas de produtos. Podes adicioná-los manualmente.");
+    } catch (error) {
+      console.error(error);
+      alert("Não foi possível ler estas fotografias. Confirma se estão nítidas e tenta novamente.");
+    } finally {
+      setALer(false);
+    }
+  }
+
+  function atualizarLinhaFatura(id, campo, valor) {
+    setLinhasFatura(linhas => linhas.map(linha => linha.id === id ? { ...linha, [campo]: valor } : linha));
+  }
+
+  function validarLinhasFatura() {
+    const pendentes = linhasFatura.filter(linha => !linha.ignorar && (!linha.produto || !(numero(linha.quantidade) > 0)));
+    if (pendentes.length) {
+      alert("Associa cada linha válida a um produto e confirma a quantidade. Remove as linhas que não interessam.");
+      return;
+    }
+    const validas = linhasFatura.filter(linha => !linha.ignorar && linha.produto && numero(linha.quantidade) > 0);
+    if (!validas.length) {
+      alert("Não existem linhas válidas para adicionar.");
+      return;
+    }
+    setEntradas(atuais => [
+      ...atuais,
+      ...validas.map(linha => ({
+        id: idLinha(),
+        produto: linha.produto,
+        quantidade: numero(linha.quantidade),
+        precoFatura: numero(linha.precoFatura) > 0 ? numero(linha.precoFatura) : ""
+      }))
+    ]);
+    setLinhasFatura([]);
+    setFotografias([]);
+    setProgresso(0);
+  }
+
+  function CabecalhoArea({ titulo }) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <button type="button" style={estilos.secundario} onClick={() => mudarArea("inicio")}>← Início</button>
+        <h2 style={{ margin: 0 }}>{titulo}</h2>
+      </div>
+    );
+  }
+
+  function SeletorProduto({ value, onChange, id }) {
+    return (
+      <select id={id} style={estilos.input} value={value} onChange={onChange} required>
+        <option value="">Selecionar produto…</option>
+        {produtos.map(produto => (
+          <option key={produto.nome} value={produto.nome}>{produto.nome} ({produto.unidade})</option>
+        ))}
+      </select>
+    );
+  }
+
+  function ListaProvisoria({ tipo, linhas, remover, confirmar }) {
+    if (!linhas.length) return <p style={estilos.subtitulo}>Ainda não foram adicionados produtos.</p>;
+    return (
+      <>
+        <div style={estilos.tabelaWrap}>
+          <table style={estilos.tabela}>
+            <thead><tr><th style={estilos.th}>Produto</th><th style={{ ...estilos.th, ...estilos.direita }}>Quantidade</th>{tipo === "entrada" && <th style={{ ...estilos.th, ...estilos.direita }}>Preço da fatura</th>}<th style={estilos.th}>Remover</th></tr></thead>
+            <tbody>
+              {linhas.map(linha => {
+                const produto = produtos.find(p => p.nome === linha.produto);
+                return (
+                  <tr key={linha.id}>
+                    <td style={estilos.td}>{linha.produto}<div style={estilos.subtitulo}>{produto?.unidade}</div></td>
+                    <td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(linha.quantidade)}</td>
+                    {tipo === "entrada" && <td style={{ ...estilos.td, ...estilos.direita }}>{linha.precoFatura === "" ? "—" : formatarPreco(linha.precoFatura)}</td>}
+                    <td style={estilos.td}><button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => remover(linha.id)}>Retirar</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <button type="button" style={{ ...estilos.botao, width: "100%", marginTop: 12 }} disabled={aGuardar} onClick={confirmar}>
+          {aGuardar ? "A guardar…" : `Confirmar ${tipo === "entrada" ? "entradas" : "saídas"}`}
+        </button>
+      </>
+    );
+  }
 
   return (
-    <div style={styles.app}>
-      <div style={styles.shell}>
-        <header style={styles.header}>
-          <div>
-            <h1 style={styles.title}>👨‍🍳 Chef de Cozinha</h1>
-            <p style={styles.subtitle}>Controlo operacional da cozinha</p>
-          </div>
-          <button type="button" style={styles.logout} onClick={onLogout}>Sair</button>
+    <div style={estilos.app}>
+      <div style={estilos.shell}>
+        <header style={estilos.header}>
+          <div><h1 style={estilos.titulo}>👨‍🍳 Chef Cozinha</h1><p style={estilos.subtitulo}>Controlo operacional do Cozinha de Tacho</p></div>
+          <button type="button" style={estilos.secundario} onClick={onLogout}>Sair</button>
         </header>
 
-        <nav style={styles.tabs} aria-label="Áreas do perfil Chef de Cozinha">
-          {tabs.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              style={{ ...styles.tab, ...(area === id ? styles.activeTab : {}) }}
-              onClick={() => {
-                setArea(id);
-                setPesquisa("");
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        {erro && <div style={{ ...estilos.card, ...estilos.erro }}>{erro} <button type="button" style={estilos.secundario} onClick={carregarStock}>Tentar novamente</button></div>}
+        {aCarregar && <div style={estilos.card}>A carregar stock…</div>}
 
-        {erro && <div style={{ ...styles.card, ...styles.error }}>{erro}</div>}
-        {aCarregar && <div style={styles.card}>A carregar…</div>}
+        {!aCarregar && !erro && area === "inicio" && (
+          <>
+            <div style={estilos.grelha}>
+              <button type="button" style={estilos.acao} onClick={() => mudarArea("stock")}><span style={{ fontSize: 28 }}>📦</span><br />Consultar stock</button>
+              <button type="button" style={estilos.acao} onClick={() => mudarArea("entrada")}><span style={{ fontSize: 28 }}>➕</span><br />Registar entrada</button>
+              <button type="button" style={estilos.acao} onClick={() => mudarArea("saida")}><span style={{ fontSize: 28 }}>➖</span><br />Registar saída</button>
+            </div>
+            <section style={{ ...estilos.card, marginTop: 14, ...(abaixoMinimo.length ? estilos.alerta : {}) }}>
+              <h2 style={{ marginTop: 0 }}>Stock abaixo do mínimo</h2>
+              {!abaixoMinimo.length && <p style={{ marginBottom: 0 }}>Não existem alertas neste momento.</p>}
+              {abaixoMinimo.slice(0, 8).map(produto => (
+                <div key={produto.nome} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: `1px solid ${cores.borda}` }}>
+                  <span>{produto.nome}</span><strong>{formatarNumero(produto.stock_atual)} {produto.unidade}</strong>
+                </div>
+              ))}
+              {abaixoMinimo.length > 8 && <button type="button" style={{ ...estilos.secundario, marginTop: 10 }} onClick={() => mudarArea("stock")}>Ver todos os alertas</button>}
+            </section>
+          </>
+        )}
 
         {!aCarregar && !erro && area === "stock" && (
           <>
-            <div style={styles.summary}>
-              <div style={styles.summaryCard}>
-                <strong>{produtos.length}</strong>
-                <div>Produtos controlados</div>
-              </div>
-              <div style={{ ...styles.summaryCard, ...(abaixoDoMinimo.length ? styles.warningRow : {}) }}>
-                <strong>{abaixoDoMinimo.length}</strong>
-                <div>Produtos abaixo do mínimo</div>
-              </div>
-            </div>
-
-            <section style={styles.card}>
-              <input
-                style={styles.input}
-                value={pesquisa}
-                onChange={e => setPesquisa(e.target.value)}
-                placeholder="Pesquisar produto…"
-              />
-              <div style={{ ...styles.tableWrap, marginTop: 10 }}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Produto</th>
-                      <th style={styles.th}>Unidade</th>
-                      <th style={{ ...styles.th, textAlign: "right" }}>Stock atual</th>
-                      <th style={{ ...styles.th, textAlign: "right" }}>Mínimo</th>
-                    </tr>
-                  </thead>
+            <CabecalhoArea titulo="Consultar stock" />
+            <section style={estilos.card}>
+              <input style={estilos.input} value={pesquisa} onChange={e => setPesquisa(e.target.value)} placeholder="Pesquisar produto ou fornecedor…" />
+              <div style={{ ...estilos.tabelaWrap, marginTop: 10 }}>
+                <table style={estilos.tabela}>
+                  <thead><tr><th style={estilos.th}>Produto</th><th style={estilos.th}>Fornecedor</th><th style={estilos.th}>Unidade</th><th style={{ ...estilos.th, ...estilos.direita }}>Stock atual</th><th style={{ ...estilos.th, ...estilos.direita }}>Mínimo</th><th style={{ ...estilos.th, ...estilos.direita }}>Preço unitário</th></tr></thead>
                   <tbody>
                     {produtosFiltrados.map(produto => {
-                      const atual = Number(stockAtual[produto.nome] || 0);
-                      const minimo = Number(produto.minimo || 0);
-                      return (
-                        <tr key={produto.id || produto.nome} style={atual < minimo ? styles.warningRow : undefined}>
-                          <td style={styles.td}>{produto.nome}</td>
-                          <td style={styles.td}>{produto.unidade}</td>
-                          <td style={styles.tdRight}>{formatNumber(atual)}</td>
-                          <td style={styles.tdRight}>{formatNumber(minimo)}</td>
-                        </tr>
-                      );
+                      const alerta = Number(produto.stock_atual || 0) < Number(produto.minimo || 0);
+                      return <tr key={produto.nome} style={alerta ? estilos.alerta : undefined}><td style={estilos.td}><strong>{produto.nome}</strong></td><td style={estilos.td}>{produto.procedencia || "—"}</td><td style={estilos.td}>{produto.unidade}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(produto.stock_atual)}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(produto.minimo)}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarPreco(produto.preco_unit)}</td></tr>;
                     })}
                   </tbody>
                 </table>
@@ -371,89 +351,66 @@ export default function Chef({ onLogout }) {
         )}
 
         {!aCarregar && !erro && area === "entrada" && (
-          <section style={styles.card}>
-            <h2 style={{ marginTop: 0 }}>Registar entrada de stock</h2>
-            <form style={styles.form} onSubmit={registarEntrada}>
-              <input
-                style={styles.input}
-                list="chef-produtos-entrada"
-                placeholder="Pesquisar produto…"
-                value={entrada.produto}
-                onChange={e => setEntrada({ ...entrada, produto: e.target.value })}
-                required
-              />
-              <datalist id="chef-produtos-entrada">
-                {produtos.map(p => <option key={p.id || p.nome} value={p.nome}>{p.unidade}</option>)}
-              </datalist>
-              <input style={styles.input} type="number" step="0.001" min="0.001" placeholder="Quantidade" value={entrada.quantidade} onChange={e => setEntrada({ ...entrada, quantidade: e.target.value })} required />
-              <button style={styles.button}>Registar entrada</button>
-            </form>
-          </section>
+          <>
+            <CabecalhoArea titulo="Registar entrada" />
+            <section style={estilos.card}>
+              <h3 style={{ marginTop: 0 }}>Adicionar manualmente</h3>
+              <form style={estilos.formLinha} onSubmit={adicionarEntradaManual}>
+                <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto id="entrada-produto" value={entradaManual.produto} onChange={e => setEntradaManual({ ...entradaManual, produto: e.target.value })} /></label>
+                <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={entradaManual.quantidade} onChange={e => setEntradaManual({ ...entradaManual, quantidade: e.target.value })} required /></label>
+                <button style={estilos.botao}>Adicionar</button>
+              </form>
+            </section>
+
+            <section style={estilos.card}>
+              <h3 style={{ marginTop: 0 }}>Adicionar através de fotografias da fatura</h3>
+              <p style={estilos.subtitulo}>Podes adicionar várias fotografias. Serão usadas apenas para a leitura e não ficam guardadas.</p>
+              <input type="file" accept="image/*" capture="environment" multiple onChange={juntarFotografias} />
+              {fotografias.map((foto, indice) => <div key={`${foto.name}-${indice}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 0" }}><span>Fotografia {indice + 1}: {foto.name}</span><button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => setFotografias(lista => lista.filter((_, i) => i !== indice))}>Retirar</button></div>)}
+              {!!fotografias.length && <button type="button" style={{ ...estilos.botao, marginTop: 10 }} disabled={aLer} onClick={lerFatura}>{aLer ? `A ler… ${Math.round(progresso * 100)}%` : `Ler ${fotografias.length} fotografia(s)`}</button>}
+              {aLer && <progress style={{ width: "100%", marginTop: 10 }} max="1" value={progresso} />}
+            </section>
+
+            {!!linhasFatura.length && (
+              <section style={estilos.card}>
+                <h3 style={{ marginTop: 0 }}>Validar leitura da fatura</h3>
+                <div style={estilos.nota}>Confirma obrigatoriamente o produto, a quantidade e o preço lido. O preço serve apenas para comparação e não será guardado.</div>
+                {linhasFatura.map(linha => {
+                  const produto = produtos.find(p => p.nome === linha.produto);
+                  return (
+                    <div key={linha.id} style={{ padding: "14px 0", borderBottom: `1px solid ${cores.borda}`, opacity: linha.ignorar ? 0.55 : 1 }}>
+                      <div style={{ fontSize: 13, color: cores.cinzento, marginBottom: 8 }}>Foto {linha.foto}: {linha.descricao}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, alignItems: "end" }}>
+                        <label><span style={estilos.etiqueta}>Produto existente</span><SeletorProduto value={linha.produto} onChange={e => atualizarLinhaFatura(linha.id, "produto", e.target.value)} /></label>
+                        <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={linha.quantidade} onChange={e => atualizarLinhaFatura(linha.id, "quantidade", e.target.value)} /></label>
+                        <label><span style={estilos.etiqueta}>Preço da fatura</span><input style={estilos.input} type="number" inputMode="decimal" min="0" step="0.001" value={linha.precoFatura} onChange={e => atualizarLinhaFatura(linha.id, "precoFatura", e.target.value)} /></label>
+                        <button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => setLinhasFatura(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
+                      </div>
+                      {produto && <div style={{ marginTop: 7, fontSize: 14 }}>Preço atual: <strong>{formatarPreco(produto.preco_unit)}</strong>{numero(linha.precoFatura) > 0 && <> · Diferença: <strong>{formatarPreco(numero(linha.precoFatura) - Number(produto.preco_unit || 0))}</strong></>}</div>}
+                    </div>
+                  );
+                })}
+                <button type="button" style={{ ...estilos.botao, width: "100%", marginTop: 12 }} onClick={validarLinhasFatura}>Validar e adicionar à lista provisória</button>
+              </section>
+            )}
+
+            <section style={estilos.card}><h3 style={{ marginTop: 0 }}>Lista provisória</h3><ListaProvisoria tipo="entrada" linhas={entradas} remover={id => setEntradas(lista => lista.filter(item => item.id !== id))} confirmar={confirmarEntradas} /></section>
+          </>
         )}
 
         {!aCarregar && !erro && area === "saida" && (
-          <section style={styles.card}>
-            <h2 style={{ marginTop: 0 }}>Registar saída de stock</h2>
-            <form style={styles.form} onSubmit={registarSaida}>
-              <input
-                style={styles.input}
-                list="chef-produtos-saida"
-                placeholder="Pesquisar produto…"
-                value={saida.produto}
-                onChange={e => setSaida({ ...saida, produto: e.target.value })}
-                required
-              />
-              <datalist id="chef-produtos-saida">
-                {produtos.map(p => <option key={p.id || p.nome} value={p.nome}>{p.unidade}</option>)}
-              </datalist>
-              <input style={styles.input} type="number" step="0.001" min="0.001" placeholder="Quantidade" value={saida.quantidade} onChange={e => setSaida({ ...saida, quantidade: e.target.value })} required />
-              <input style={styles.input} placeholder="Responsável" value={saida.responsavel} onChange={e => setSaida({ ...saida, responsavel: e.target.value })} required />
-              <button style={styles.button}>Registar saída</button>
-            </form>
-          </section>
-        )}
-
-        {!aCarregar && !erro && area === "inventario" && (
-          <section style={styles.card}>
-            <h2 style={{ marginTop: 0 }}>Atualizar inventário real</h2>
-            <p style={styles.subtitle}>Preenche apenas os produtos que foram contados.</p>
-            <input style={{ ...styles.input, marginTop: 12 }} value={pesquisa} onChange={e => setPesquisa(e.target.value)} placeholder="Pesquisar produto…" />
-            <form onSubmit={guardarInventario}>
-              <div style={{ ...styles.tableWrap, marginTop: 10 }}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Produto</th>
-                      <th style={styles.th}>Unidade</th>
-                      <th style={{ ...styles.th, textAlign: "right" }}>Stock atual</th>
-                      <th style={styles.th}>Contagem real</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {produtosFiltrados.map(produto => (
-                      <tr key={produto.id || produto.nome}>
-                        <td style={styles.td}>{produto.nome}</td>
-                        <td style={styles.td}>{produto.unidade}</td>
-                        <td style={styles.tdRight}>{formatNumber(stockAtual[produto.nome] || 0)}</td>
-                        <td style={styles.td}>
-                          <input
-                            style={{ ...styles.input, minWidth: 120 }}
-                            type="number"
-                            step="0.001"
-                            min="0"
-                            placeholder="Quantidade"
-                            value={contagens[produto.nome] ?? ""}
-                            onChange={e => setContagens({ ...contagens, [produto.nome]: e.target.value })}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <button style={{ ...styles.button, marginTop: 12 }} type="submit">Guardar inventário preenchido</button>
-            </form>
-          </section>
+          <>
+            <CabecalhoArea titulo="Registar saída" />
+            <section style={estilos.card}>
+              <form style={estilos.formLinha} onSubmit={adicionarSaidaManual}>
+                <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto id="saida-produto" value={saidaManual.produto} onChange={e => setSaidaManual({ ...saidaManual, produto: e.target.value })} /></label>
+                <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={saidaManual.quantidade} onChange={e => setSaidaManual({ ...saidaManual, quantidade: e.target.value })} required /></label>
+                <button style={estilos.botao}>Adicionar</button>
+              </form>
+              {saidaManual.produto && <p style={estilos.subtitulo}>Stock disponível: {formatarNumero(produtos.find(p => p.nome === saidaManual.produto)?.stock_atual || 0)} {produtos.find(p => p.nome === saidaManual.produto)?.unidade}</p>}
+            </section>
+            <section style={estilos.card}><h3 style={{ marginTop: 0 }}>Lista provisória</h3><ListaProvisoria tipo="saida" linhas={saidas} remover={id => setSaidas(lista => lista.filter(item => item.id !== id))} confirmar={confirmarSaidas} /></section>
+          </>
         )}
       </div>
     </div>
