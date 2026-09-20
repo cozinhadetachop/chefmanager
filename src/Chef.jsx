@@ -56,6 +56,46 @@ function idLinha() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function SeletorProduto({ produtos, value, onChange, id }) {
+  const [termo, setTermo] = useState("");
+
+  useEffect(() => {
+    if (!value) setTermo("");
+  }, [value]);
+
+  const produtosFiltrados = useMemo(() => {
+    const pesquisa = termo.trim().toLocaleLowerCase("pt-PT");
+    if (!pesquisa) return produtos;
+    return produtos.filter(produto =>
+      `${produto.nome || ""} ${produto.procedencia || ""}`
+        .toLocaleLowerCase("pt-PT")
+        .includes(pesquisa)
+    );
+  }, [produtos, termo]);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <input
+        style={estilos.input}
+        type="search"
+        value={termo}
+        onChange={event => setTermo(event.target.value)}
+        placeholder="Pesquisar produto…"
+        aria-label="Pesquisar produto"
+      />
+      <select id={id} style={estilos.input} value={value} onChange={onChange} required>
+        <option value="">Selecionar produto…</option>
+        {produtosFiltrados.map(produto => (
+          <option key={produto.nome} value={produto.nome}>{produto.nome} ({produto.unidade})</option>
+        ))}
+      </select>
+      {!!termo && !produtosFiltrados.length && (
+        <span style={estilos.subtitulo}>Nenhum produto encontrado.</span>
+      )}
+    </div>
+  );
+}
+
 export default function Chef({ onLogout }) {
   const [area, setArea] = useState("inicio");
   const [produtos, setProdutos] = useState([]);
@@ -259,17 +299,6 @@ export default function Chef({ onLogout }) {
     );
   }
 
-  function SeletorProduto({ value, onChange, id }) {
-    return (
-      <select id={id} style={estilos.input} value={value} onChange={onChange} required>
-        <option value="">Selecionar produto…</option>
-        {produtos.map(produto => (
-          <option key={produto.nome} value={produto.nome}>{produto.nome} ({produto.unidade})</option>
-        ))}
-      </select>
-    );
-  }
-
   function ListaProvisoria({ tipo, linhas, remover, confirmar }) {
     if (!linhas.length) return <p style={estilos.subtitulo}>Ainda não foram adicionados produtos.</p>;
     return (
@@ -356,7 +385,7 @@ export default function Chef({ onLogout }) {
             <section style={estilos.card}>
               <h3 style={{ marginTop: 0 }}>Adicionar manualmente</h3>
               <form style={estilos.formLinha} onSubmit={adicionarEntradaManual}>
-                <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto id="entrada-produto" value={entradaManual.produto} onChange={e => setEntradaManual({ ...entradaManual, produto: e.target.value })} /></label>
+                <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto produtos={produtos} id="entrada-produto" value={entradaManual.produto} onChange={e => setEntradaManual({ ...entradaManual, produto: e.target.value })} /></label>
                 <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={entradaManual.quantidade} onChange={e => setEntradaManual({ ...entradaManual, quantidade: e.target.value })} required /></label>
                 <button style={estilos.botao}>Adicionar</button>
               </form>
@@ -381,7 +410,7 @@ export default function Chef({ onLogout }) {
                     <div key={linha.id} style={{ padding: "14px 0", borderBottom: `1px solid ${cores.borda}`, opacity: linha.ignorar ? 0.55 : 1 }}>
                       <div style={{ fontSize: 13, color: cores.cinzento, marginBottom: 8 }}>Foto {linha.foto}: {linha.descricao}</div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, alignItems: "end" }}>
-                        <label><span style={estilos.etiqueta}>Produto existente</span><SeletorProduto value={linha.produto} onChange={e => atualizarLinhaFatura(linha.id, "produto", e.target.value)} /></label>
+                        <label><span style={estilos.etiqueta}>Produto existente</span><SeletorProduto produtos={produtos} value={linha.produto} onChange={e => atualizarLinhaFatura(linha.id, "produto", e.target.value)} /></label>
                         <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={linha.quantidade} onChange={e => atualizarLinhaFatura(linha.id, "quantidade", e.target.value)} /></label>
                         <label><span style={estilos.etiqueta}>Preço da fatura</span><input style={estilos.input} type="number" inputMode="decimal" min="0" step="0.001" value={linha.precoFatura} onChange={e => atualizarLinhaFatura(linha.id, "precoFatura", e.target.value)} /></label>
                         <button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => setLinhasFatura(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
@@ -403,7 +432,7 @@ export default function Chef({ onLogout }) {
             <CabecalhoArea titulo="Registar saída" />
             <section style={estilos.card}>
               <form style={estilos.formLinha} onSubmit={adicionarSaidaManual}>
-                <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto id="saida-produto" value={saidaManual.produto} onChange={e => setSaidaManual({ ...saidaManual, produto: e.target.value })} /></label>
+                <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto produtos={produtos} id="saida-produto" value={saidaManual.produto} onChange={e => setSaidaManual({ ...saidaManual, produto: e.target.value })} /></label>
                 <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={saidaManual.quantidade} onChange={e => setSaidaManual({ ...saidaManual, quantidade: e.target.value })} required /></label>
                 <button style={estilos.botao}>Adicionar</button>
               </form>
