@@ -112,7 +112,9 @@ export default function Gerente({ onLogout }) {
   const [entradas, setEntradas] = useState([]);
   const [saidas, setSaidas] = useState([]);
   const [inventarioReal, setInventarioReal] = useState({});
-  const [inventarioRealUpdatedAt, setInventarioRealUpdatedAt] = useState({});
+  const [inventarioAjustado, setInventarioAjustado] = useState({});
+  const [stockCarregado, setStockCarregado] = useState(false);
+  const [erroStock, setErroStock] = useState("");
   const [produtoAberto, setProdutoAberto] = useState(null);
 
   /* ✅ Avisos começam fechados */
@@ -171,10 +173,24 @@ export default function Gerente({ onLogout }) {
   }, []);
 
   async function fetchTudo() {
-    const { data: p } = await supabase.from("produtos").select("*").order("nome");
-    const { data: e } = await supabase.from("entradas").select("*").order("datahora", { ascending: false });
-    const { data: s } = await supabase.from("saidas").select("*").order("dataHora", { ascending: false });
-    const { data: r } = await supabase.from("inventario_real").select("*");
+    setErroStock("");
+    // O Gerente e o Chef recebem as mesmas quantidades calculadas no Supabase.
+    const { data: stock, error: erroConsultaStock } = await supabase.rpc("chef_stock_atual");
+    if (erroConsultaStock || !Array.isArray(stock)) {
+      console.error(erroConsultaStock);
+      setErroStock("Não foi possível carregar o stock atual. Tenta novamente.");
+      return;
+    }
+
+    const { data: p, error: erroProdutos } = await supabase.from("produtos").select("*").order("nome");
+    const { data: e, error: erroEntradas } = await supabase.from("entradas").select("*").order("datahora", { ascending: false });
+    const { data: s, error: erroSaidas } = await supabase.from("saidas").select("*").order("dataHora", { ascending: false });
+    const { data: r, error: erroInventario } = await supabase.from("inventario_real").select("*");
+    if (erroProdutos || erroEntradas || erroSaidas || erroInventario) {
+      console.error(erroProdutos || erroEntradas || erroSaidas || erroInventario);
+      setErroStock("Não foi possível carregar os dados do stock. Tenta novamente.");
+      return;
+    }
 
     // normaliza unidade no client (para dados antigos)
     const produtosNorm = (p || []).map((x) => ({ ...x, unidade: normalizeUnidade(x.unidade) }));
@@ -184,13 +200,12 @@ export default function Gerente({ onLogout }) {
     setSaidas(s || []);
 
     const mapQtd = {};
-    const mapUpd = {};
     r?.forEach(i => {
       mapQtd[i.produto] = i.quantidade;
-      mapUpd[i.produto] = i.updated_at || null;
     });
     setInventarioReal(mapQtd);
-    setInventarioRealUpdatedAt(mapUpd);
+    setInventarioAjustado(Object.fromEntries(stock.map(item => [item.nome, Number(item.stock_atual)])));
+    setStockCarregado(true);
   }
 
   /* ===== INVENTÁRIO TEÓRICO ===== */
@@ -204,43 +219,6 @@ export default function Gerente({ onLogout }) {
     });
     return inv;
   }, [entradas, saidas]);
-
-  /* ✅ STOCK ATUAL (RIGOROSO) = Real + Entradas após updated_at - Saídas após updated_at */
-  const inventarioAjustado = useMemo(() => {
-    const inv = {};
-    const fallbackMesInicio =
-      (inventarioMes || "").match(/^\d{4}-\d{2}$/) ? `${inventarioMes}-01` : "1970-01-01";
-
-    produtos.forEach(p => {
-      inv[p.nome] = Number(inventarioReal[p.nome] || 0);
-    });
-
-    entradas.forEach(e => {
-      const nome = e.produto;
-      const corte = inventarioRealUpdatedAt[nome]
-        ? String(inventarioRealUpdatedAt[nome]).slice(0, 10)
-        : fallbackMesInicio;
-
-      const d = String(e.datahora || "").slice(0, 10);
-      if (d < corte) return;
-
-      inv[nome] = (inv[nome] || 0) + Number(e.quantidade);
-    });
-
-    saidas.forEach(s => {
-      const nome = s.produto;
-      const corte = inventarioRealUpdatedAt[nome]
-        ? String(inventarioRealUpdatedAt[nome]).slice(0, 10)
-        : fallbackMesInicio;
-
-      const d = String(s.dataHora || "").slice(0, 10);
-      if (d < corte) return;
-
-      inv[nome] = (inv[nome] || 0) - Number(s.quantidade);
-    });
-
-    return inv;
-  }, [produtos, inventarioReal, inventarioRealUpdatedAt, entradas, saidas, inventarioMes]);
 
   /* ✅ LISTA FILTRADA PARA INVENTÁRIO MENSAL (RÁPIDO) */
   const inventarioMensalLista = useMemo(() => {
@@ -594,6 +572,16 @@ export default function Gerente({ onLogout }) {
   const saidasFiltradas = useMemo(() => {
     return saidas.filter(s => dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte));
   }, [saidas, filtroDataSaidas, filtroDataSaidasAte]);
+
+  if (!stockCarregado || erroStock) {
+    return (
+      <div style={styles.app}>
+        <p role={erroStock ? "alert" : undefined}>{erroStock || "A carregar stock…"}</p>
+        {erroStock && <button style={styles.button} type="button" onClick={fetchTudo}>Tentar novamente</button>}
+        <button style={styles.button} type="button" onClick={onLogout}>Sair</button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.app}>
