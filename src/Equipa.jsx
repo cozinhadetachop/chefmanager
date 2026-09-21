@@ -3,11 +3,12 @@ import { supabase } from "./supabaseClient";
 
 /* ===== Estilos (iguais ao resto da app) ===== */
 const styles = {
-  app: { padding: 20, fontFamily: "sans-serif" },
-  card: { border: "1px solid #ccc", borderRadius: 6, padding: 12, marginBottom: 12 },
-  input: { padding: "4px 6px", margin: "2px 4px" },
-  button: { padding: "4px 8px", marginLeft: 4, cursor: "pointer" },
-  danger: { backgroundColor: "#f44336", color: "white" },
+  app: { minHeight: "100vh", maxWidth: 1000, margin: "0 auto", padding: 16, fontFamily: "Arial, sans-serif" },
+  card: { border: "1px solid #d9ddd4", borderRadius: 14, padding: 16, marginBottom: 12, background: "white" },
+  input: { minHeight: 44, maxWidth: "100%", padding: "9px 12px", margin: "2px 0", border: "1px solid #d9ddd4", borderRadius: 9, background: "white", fontSize: 16 },
+  button: { minHeight: 44, padding: "9px 14px", border: "1px solid #536b45", borderRadius: 9, background: "#536b45", color: "white", fontSize: 15, fontWeight: 700, cursor: "pointer" },
+  secondary: { background: "white", color: "#34452d", borderColor: "#d9ddd4" },
+  danger: { backgroundColor: "#b42318", borderColor: "#b42318", color: "white" },
   produtoLinha: { fontWeight: "bold", cursor: "pointer" }
 };
 
@@ -63,29 +64,32 @@ export default function Equipa({ onLogout }) {
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
   return (
-    <div style={styles.app}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
+    <div className="operacao" style={styles.app}>
+      <header className="operacao-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
           <img src="/logo-cozinha-de-tacho.webp" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto" }} />
-          <h2 style={{ margin: "8px 0 0" }}>👨‍🍳 Equipa — Registo de Saídas</h2>
+          <h2 style={{ margin: "8px 0 0" }}>Equipa · Registo de saídas</h2>
         </div>
         <button onClick={onLogout} style={{ ...styles.button, ...styles.danger }}>
           🔑 Sair
         </button>
       </header>
 
+      <p className="operacao-muted">1. Escolhe os produtos · 2. Revê a lista · 3. Confirma as saídas.</p>
       {/* ✅ Pesquisa + abrir/fechar tudo (igual ao gerente) */}
-      <div style={{ marginBottom: 8 }}>
+      <div className="operacao-tools" style={styles.card}>
         <input
-          style={{ ...styles.input, width: 260 }}
+          style={styles.input}
+          type="search"
+          aria-label="Pesquisar produto para saída"
           placeholder="Pesquisar produto…"
           value={pesquisaProduto}
           onChange={e => setPesquisaProduto(e.target.value)}
         />
-        <button style={styles.button} type="button" onClick={abrirTudoProcedencias}>
+        <button style={{ ...styles.button, ...styles.secondary }} type="button" onClick={abrirTudoProcedencias}>
           Abrir tudo
         </button>
-        <button style={styles.button} type="button" onClick={fecharTudoProcedencias}>
+        <button style={{ ...styles.button, ...styles.secondary }} type="button" onClick={fecharTudoProcedencias}>
           Fechar tudo
         </button>
       </div>
@@ -100,24 +104,18 @@ export default function Equipa({ onLogout }) {
         // ao pesquisar, não mostramos procedências vazias
         if (pesquisa && listaFiltrada.length === 0) return null;
 
-        const aberta = !!procedenciasAbertas[proc];
+        const aberta = !!procedenciasAbertas[proc] || !!pesquisa;
 
         return (
           <div key={proc} style={styles.card}>
-            <div
-              style={{
-                ...styles.produtoLinha,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}
+            <button type="button" className="operacao-group" aria-expanded={aberta}
               onClick={() => toggleProcedencia(proc)}
             >
               <span>{aberta ? "▼" : "▶"} {proc}</span>
               <span style={{ fontWeight: "normal" }}>
                 {listaFiltrada.length}/{listaTotal.length}
               </span>
-            </div>
+            </button>
 
             {aberta && (
               <div style={{ marginLeft: 12 }}>
@@ -125,14 +123,13 @@ export default function Equipa({ onLogout }) {
                   .slice()
                   .sort((a, b) => (a.nome || "").localeCompare(b.nome || ""))
                   .map(p => (
-                    <div key={p.id} style={{ marginBottom: 6, borderTop: "1px solid #eee", paddingTop: 6 }}>
-                      <span style={{ fontWeight: "bold" }}>
-                        {p.nome} ({p.unidade})
-                      </span>
+                    <div key={p.id} className="equipa-produto">
+                      <strong>{p.nome} ({p.unidade})</strong>
 
                       <input
                         style={styles.input}
                         type="number"
+                        aria-label={`Quantidade de ${p.nome}`}
                         placeholder="Qtd"
                         value={quantidades[p.id] || ""}
                         onChange={e =>
@@ -167,7 +164,7 @@ export default function Equipa({ onLogout }) {
                           setQuantidades({ ...quantidades, [p.id]: "" });
                         }}
                       >
-                        ➕
+                        Adicionar
                       </button>
                     </div>
                   ))}
@@ -178,12 +175,12 @@ export default function Equipa({ onLogout }) {
       })}
 
       {/* ===== LISTA PROVISÓRIA ===== */}
-      <h3>📋 Lista provisória</h3>
+      <div style={styles.card}><h3 className="operacao-section-title">📋 Lista provisória ({saidasProvisorias.length})</h3>
 
       {saidasProvisorias.length === 0 && <div>Sem saídas adicionadas.</div>}
 
       {saidasProvisorias.length > 0 && (
-        <table border="1" cellPadding="4" style={{ width: "100%" }}>
+        <table className="mobile-cards" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th>Produto</th>
@@ -196,11 +193,11 @@ export default function Equipa({ onLogout }) {
           <tbody>
             {saidasProvisorias.map((s, i) => (
               <tr key={i}>
-                <td>{s.produto}</td>
-                <td>{s.quantidade}</td>
-                <td>{s.unidade}</td>
-                <td>{s.setor}</td>
-                <td>
+                <td data-label="Produto">{s.produto}</td>
+                <td data-label="Quantidade">{s.quantidade}</td>
+                <td data-label="Unidade">{s.unidade}</td>
+                <td data-label="Setor">{s.setor}</td>
+                <td data-label="Remover">
                   <button
                     style={{ ...styles.button, ...styles.danger }}
                     type="button"
@@ -217,9 +214,12 @@ export default function Equipa({ onLogout }) {
         </table>
       )}
 
+      </div>
       {/* ===== CONFIRMAR ===== */}
-      <div style={{ marginTop: 12 }}>
-        <input
+      <div className="equipa-confirmar" style={styles.card}>
+        <h3 className="operacao-section-title">✅ Confirmar saídas</h3>
+        <label htmlFor="responsavel-saidas">Responsável</label><br />
+        <input id="responsavel-saidas"
           style={styles.input}
           placeholder="Responsável"
           value={responsavel}
@@ -227,7 +227,7 @@ export default function Equipa({ onLogout }) {
         />
 
         <button
-          style={styles.button}
+          style={{ ...styles.button, marginTop: 10 }}
           type="button"
           disabled={aGuardar}
           onClick={async () => {
