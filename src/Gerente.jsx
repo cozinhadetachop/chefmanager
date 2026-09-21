@@ -117,6 +117,9 @@ export default function Gerente({ onLogout }) {
   const [produtos, setProdutos] = useState([]);
   const [entradas, setEntradas] = useState([]);
   const [saidas, setSaidas] = useState([]);
+  const [erroSaidas, setErroSaidas] = useState("");
+  const [aAtualizarSaidas, setAAtualizarSaidas] = useState(false);
+  const [saidasAtualizadasEm, setSaidasAtualizadasEm] = useState(null);
   const [inventarioReal, setInventarioReal] = useState({});
   const [inventarioConfirmado, setInventarioConfirmado] = useState({});
   const [ajustesInventario, setAjustesInventario] = useState([]);
@@ -132,7 +135,7 @@ export default function Gerente({ onLogout }) {
 
   /* ✅ Toggles históricos (começam fechados) */
   const [entradasAbertas, setEntradasAbertas] = useState(false);
-  const [saidasAbertas, setSaidasAbertas] = useState(false);
+  const [saidasAbertas, setSaidasAbertas] = useState(true);
 
   const [produtoNovo, setProdutoNovo] = useState({
     nome: "",
@@ -183,6 +186,39 @@ export default function Gerente({ onLogout }) {
     fetchTudo();
   }, []);
 
+  useEffect(() => {
+    if (area !== "historico") return;
+    fetchSaidas();
+    const aoVoltar = () => fetchSaidas();
+    const aoFicarVisivel = () => {
+      if (document.visibilityState === "visible") fetchSaidas();
+    };
+    window.addEventListener("focus", aoVoltar);
+    document.addEventListener("visibilitychange", aoFicarVisivel);
+    const intervalo = window.setInterval(fetchSaidas, 30000);
+    return () => {
+      window.removeEventListener("focus", aoVoltar);
+      document.removeEventListener("visibilitychange", aoFicarVisivel);
+      window.clearInterval(intervalo);
+    };
+  }, [area]);
+
+  async function fetchSaidas() {
+    setAAtualizarSaidas(true);
+    try {
+      const { data, error } = await supabase.from("saidas").select("*").order("dataHora", { ascending: false });
+      if (error) throw error;
+      setSaidas(data || []);
+      setSaidasAtualizadasEm(new Date());
+      setErroSaidas("");
+    } catch (error) {
+      console.error(error);
+      setErroSaidas("Não foi possível atualizar as saídas. Tenta novamente.");
+    } finally {
+      setAAtualizarSaidas(false);
+    }
+  }
+
   async function fetchTudo() {
     setErroStock("");
     // O Gerente e o Chef recebem as mesmas quantidades calculadas no Supabase.
@@ -212,6 +248,7 @@ export default function Gerente({ onLogout }) {
     setProdutos(produtosNorm);
     setEntradas(e || []);
     setSaidas(s || []);
+    setSaidasAtualizadasEm(new Date());
 
     const mapQtd = {};
     r?.forEach(i => {
@@ -1309,12 +1346,22 @@ export default function Gerente({ onLogout }) {
 
       {/* ✅ HISTÓRICO SAÍDAS (CARD + TOGGLE) */}
       <div style={styles.card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <h3 style={{ marginTop: 0, marginBottom: 0 }}>📜 Histórico de Saídas</h3>
-          <button style={styles.button} type="button" onClick={() => setSaidasAbertas(prev => !prev)}>
-            {saidasAbertas ? "Ocultar" : "Mostrar"}
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button style={{ ...styles.button, ...styles.secondary }} type="button" onClick={fetchSaidas} disabled={aAtualizarSaidas}>
+              {aAtualizarSaidas ? "A atualizar…" : "Atualizar saídas"}
+            </button>
+            <button style={styles.button} type="button" onClick={() => setSaidasAbertas(prev => !prev)}>
+              {saidasAbertas ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
         </div>
+        <p style={{ margin: "8px 0", opacity: 0.8 }}>
+          {saidasFiltradas.length} saída(s) no intervalo atual
+          {saidasAtualizadasEm && ` · Atualizado às ${saidasAtualizadasEm.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`}
+        </p>
+        {erroSaidas && <p role="alert" style={styles.warning}>{erroSaidas}</p>
 
         {saidasAbertas && (
           <>
