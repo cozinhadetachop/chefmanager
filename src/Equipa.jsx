@@ -17,6 +17,8 @@ export default function Equipa({ onLogout }) {
   const [saidasProvisorias, setSaidasProvisorias] = useState([]);
   const [quantidades, setQuantidades] = useState({});
   const [responsavel, setResponsavel] = useState("");
+  const [aGuardar, setAGuardar] = useState(false);
+  const [erroSaida, setErroSaida] = useState("");
 
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
@@ -227,8 +229,9 @@ export default function Equipa({ onLogout }) {
         <button
           style={styles.button}
           type="button"
+          disabled={aGuardar}
           onClick={async () => {
-            if (!responsavel) {
+            if (!responsavel.trim()) {
               alert("Responsável obrigatório");
               return;
             }
@@ -237,25 +240,34 @@ export default function Equipa({ onLogout }) {
               return;
             }
 
-            const payload = saidasProvisorias.map(s => ({
-              ...s,
-              responsavel
-            }));
-
-            const { error } = await supabase.from("saidas").insert(payload);
-            if (error) {
-              alert("Erro ao guardar saídas");
+            setAGuardar(true);
+            setErroSaida("");
+            try {
+              const { error } = await supabase.rpc("equipa_registar_saidas", {
+                p_movimentos: saidasProvisorias.map(({ produto, quantidade }) => ({ produto, quantidade })),
+                p_responsavel: responsavel.trim()
+              });
+              if (error) {
+                console.error(error);
+                setErroSaida(error.message?.includes("STOCK_INSUFICIENTE")
+                  ? "Stock insuficiente para uma ou mais saídas. Confirma as quantidades ou informa o gerente."
+                  : "Não foi possível guardar as saídas. Tenta novamente.");
+                return;
+              }
+              setSaidasProvisorias([]);
+              setResponsavel("");
+              alert("Saídas registadas com sucesso!");
+            } catch (error) {
               console.error(error);
-              return;
+              setErroSaida("Não foi possível guardar as saídas. Tenta novamente.");
+            } finally {
+              setAGuardar(false);
             }
-
-            setSaidasProvisorias([]);
-            setResponsavel("");
-            alert("Saídas registadas com sucesso!");
           }}
         >
-          ✅ Confirmar Saídas
+          {aGuardar ? "A guardar…" : "✅ Confirmar Saídas"}
         </button>
+        {erroSaida && <p role="alert" style={{ color: "#b42318" }}>{erroSaida}</p>}
       </div>
     </div>
   );
