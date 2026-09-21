@@ -106,6 +106,11 @@ function fmtNum(v, casas = 2) {
   return n.toFixed(casas);
 }
 
+function mostrarErro(acao, erro) {
+  console.error(acao, erro);
+  window.alert(`${acao}: ${erro?.message || "Ocorreu um erro inesperado. Tenta novamente."}`);
+}
+
 export default function Gerente({ onLogout }) {
   /* ===== ESTADOS ===== */
   const [produtos, setProdutos] = useState([]);
@@ -401,8 +406,8 @@ export default function Gerente({ onLogout }) {
     const { error } = await supabase.from("inventario_real").upsert(rows);
 
     if (error) {
-      console.error(error);
-      return alert("Erro ao gravar inventário mensal. Vê a consola e confirma se 'produto' é UNIQUE/PK em inventario_real.");
+      mostrarErro("Não foi possível gravar o inventário mensal", error);
+      return;
     }
 
     await fetchTudo();
@@ -789,8 +794,8 @@ export default function Gerente({ onLogout }) {
           }
 
           if (res?.error) {
-            console.error(res.error);
-            return alert("❌ Não consegui guardar o produto. Vê a consola.");
+            mostrarErro("Não foi possível guardar o produto", res.error);
+            return;
           }
 
           setProdutoNovo({ nome: "", unidade: "", procedencia: "", minimo: "", preco_unit: "" });
@@ -865,12 +870,20 @@ export default function Gerente({ onLogout }) {
             datahora: new Date().toISOString()
           };
 
-          const { data } = await supabase.from("entradas").insert([payload]).select();
+          if (!Number.isFinite(payload.quantidade) || payload.quantidade <= 0) {
+            alert("Indica uma quantidade superior a zero.");
+            return;
+          }
 
-          setEntradas(prev => [data?.[0], ...prev].filter(Boolean));
+          const { error } = await supabase.from("entradas").insert([payload]);
+          if (error) {
+            mostrarErro("Não foi possível registar a entrada de stock", error);
+            return;
+          }
+
           setEntradaNova({ produto: "", quantidade: "", datahora: new Date().toISOString() });
           setPesquisaEntrada("");
-          fetchTudo();
+          await fetchTudo();
         }}
       >
         <input
@@ -1023,13 +1036,17 @@ export default function Gerente({ onLogout }) {
 
                                     const nowIso = new Date().toISOString();
 
-                                    await supabase.from("inventario_real").upsert({
+                                    const { error } = await supabase.from("inventario_real").upsert({
                                       produto: p.nome,
                                       quantidade: val,
                                       updated_at: nowIso
                                     });
 
-                                    fetchTudo();
+                                    if (error) {
+                                      mostrarErro(`Não foi possível atualizar o inventário de ${p.nome}`, error);
+                                      return;
+                                    }
+                                    await fetchTudo();
                                   }}
                                   placeholder="0"
                                 />
@@ -1061,8 +1078,12 @@ export default function Gerente({ onLogout }) {
                                     style={{ ...styles.button, ...styles.danger }}
                                     onClick={async () => {
                                       if (!window.confirm(`Apagar ${p.nome}?`)) return;
-                                      await supabase.from("produtos").delete().eq("id", p.id);
-                                      fetchTudo();
+                                      const { error } = await supabase.from("produtos").delete().eq("id", p.id);
+                                      if (error) {
+                                        mostrarErro(`Não foi possível apagar ${p.nome}`, error);
+                                        return;
+                                      }
+                                      await fetchTudo();
                                     }}
                                     type="button"
                                   >
