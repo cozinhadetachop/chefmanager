@@ -1,0 +1,40 @@
+/* Ecrãs operacionais do Gerente e da Equipa. */
+body { margin: 0; background: #f7f5ef; }
+.operacao, .operacao * { box-sizing: border-box; }
+.operacao { color: #252b23; background: #f7f5ef; }
+.operacao .operacao-header { max-width: 1200px; margin: 0 auto 18px; }
+.operacao .operacao-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin: 0 0 18px; }
+.operacao .operacao-nav button { text-align: left; min-height: 64px; padding: 12px 14px; border: 1px solid #d9ddd4; border-radius: 12px; background: white; color: #34452d; font-size: 16px; font-weight: 700; cursor: pointer; }
+.operacao .operacao-nav button[aria-pressed="true"] { color: white; background: #536b45; border-color: #536b45; }
+.operacao .operacao-nav button:focus-visible, .operacao button:focus-visible, .operacao input:focus-visible, .operacao select:focus-visible { outline: 3px solid #9bb98c; outline-offset: 2px; }
+.operacao .operacao-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.operacao .operacao-tools input { flex: 1 1 220px; }
+.operacao .operacao-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.operacao .operacao-form > input, .operacao .operacao-form > select { flex: 1 1 170px; min-width: 0; }
+.operacao .operacao-section-title { margin: 8px 0 12px; }
+.operacao .operacao-muted { color: #667064; font-size: 14px; }
+.operacao .operacao-table-scroll { overflow-x: auto; }
+.operacao .operacao-table-scroll .products-table { min-width: 950px; }
+.operacao .operacao-group { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; font-weight: 700; }
+.operacao .equipa-produto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; border-top: 1px solid #e7eae3; }
+.operacao .equipa-produto strong { flex: 1 1 210px; }
+.operacao .equipa-produto input { width: 105px; }
+
+@media (max-width: 700px) {
+  .operacao .operacao-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .operacao .operacao-nav button { min-height: 56px; }
+  .operacao .operacao-header img { max-width: 62vw !important; }
+  .operacao .operacao-form > input, .operacao .operacao-form > select { flex-basis: 100%; }
+  .operacao .operacao-table-scroll .products-table { min-width: 0; }
+  .operacao table.mobile-cards, .operacao .mobile-cards tbody, .operacao .mobile-cards tr, .operacao .mobile-cards td { display: block; width: 100%; }
+  .operacao .mobile-cards thead, .operacao .mobile-cards colgroup { display: none; }
+  .operacao .mobile-cards tr { padding: 8px 12px; margin-bottom: 10px; border: 1px solid #d9ddd4; border-radius: 12px; background: white; }
+  .operacao .mobile-cards td { display: grid; grid-template-columns: minmax(95px, 40%) minmax(0, 1fr); gap: 8px; align-items: center; padding: 7px 0 !important; text-align: right !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere; border: 0 !important; }
+  .operacao .mobile-cards td::before { content: attr(data-label); text-align: left; font-weight: 700; color: #536b45; }
+  .operacao .mobile-cards td[data-label=""] { display: block; text-align: left !important; }
+  .operacao .mobile-cards td[data-label=""]::before { display: none; }
+  .operacao .mobile-cards td input { max-width: 160px; margin-left: auto; }
+  .operacao .equipa-produto strong { flex-basis: 100%; }
+  .operacao .equipa-produto input { flex: 1 1 90px; }
+  .operacao .equipa-confirmar input, .operacao .equipa-confirmar > button { width: 100%; }
+}
