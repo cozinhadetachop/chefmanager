@@ -117,6 +117,9 @@ export default function Gerente({ onLogout }) {
   const [entradas, setEntradas] = useState([]);
   const [saidas, setSaidas] = useState([]);
   const [inventarioReal, setInventarioReal] = useState({});
+  const [inventarioConfirmado, setInventarioConfirmado] = useState({});
+  const [ajustesInventario, setAjustesInventario] = useState([]);
+  const [historicoInventarioAberto, setHistoricoInventarioAberto] = useState(false);
   const [inventarioAjustado, setInventarioAjustado] = useState({});
   const [stockCarregado, setStockCarregado] = useState(false);
   const [erroStock, setErroStock] = useState("");
@@ -150,6 +153,7 @@ export default function Gerente({ onLogout }) {
   const [inventarioEdicao, setInventarioEdicao] = useState({}); // { produto: "12.3" }
   const [inventarioColar, setInventarioColar] = useState("");
   const [inventarioFiltro, setInventarioFiltro] = useState("");
+  const [motivoInventario, setMotivoInventario] = useState("");
 
   /* ===== FILTROS (INTERVALO) ===== */
   const [filtroEntradaDe, setFiltroEntradaDe] = useState("");
@@ -191,8 +195,11 @@ export default function Gerente({ onLogout }) {
     const { data: e, error: erroEntradas } = await supabase.from("entradas").select("*").order("datahora", { ascending: false });
     const { data: s, error: erroSaidas } = await supabase.from("saidas").select("*").order("dataHora", { ascending: false });
     const { data: r, error: erroInventario } = await supabase.from("inventario_real").select("*");
-    if (erroProdutos || erroEntradas || erroSaidas || erroInventario) {
-      console.error(erroProdutos || erroEntradas || erroSaidas || erroInventario);
+    const { data: ajustes, error: erroAjustes } = await supabase.from("inventario_ajustes")
+      .select("id,produto,quantidade_anterior,quantidade_nova,tipo,mes_referencia,motivo,autor_email,criado_em")
+      .order("criado_em", { ascending: false }).order("id", { ascending: false }).limit(100);
+    if (erroProdutos || erroEntradas || erroSaidas || erroInventario || erroAjustes) {
+      console.error(erroProdutos || erroEntradas || erroSaidas || erroInventario || erroAjustes);
       setErroStock("Não foi possível carregar os dados do stock. Tenta novamente.");
       return;
     }
@@ -209,6 +216,8 @@ export default function Gerente({ onLogout }) {
       mapQtd[i.produto] = i.quantidade;
     });
     setInventarioReal(mapQtd);
+    setInventarioConfirmado(mapQtd);
+    setAjustesInventario(ajustes || []);
     setInventarioAjustado(Object.fromEntries(stock.map(item => [item.nome, Number(item.stock_atual)])));
     setStockCarregado(true);
   }
@@ -358,18 +367,19 @@ export default function Gerente({ onLogout }) {
   }
 
   async function gravarInventarioMensal() {
-    const nowIso = new Date().toISOString();
-
     const rows = produtos
       .map(p => {
         const raw = inventarioEdicao[p.nome];
         const val = Number(String(raw ?? "").replace(",", "."));
-        if (!Number.isFinite(val)) return null;
-        return { produto: p.nome, quantidade: val, updated_at: nowIso };
+        if (raw === "" || raw === null || raw === undefined || !Number.isFinite(val) || val < 0) return null;
+        return { produto: p.nome, quantidade: val };
       })
       .filter(Boolean);
 
-    if (!rows.length) return alert("Sem valores válidos para gravar.");
+    if (!rows.length || rows.length !== produtos.length) {
+      return alert("Preenche um valor válido (zero ou superior) para todos os produtos antes de gravar.");
+    }
+    if (!motivoInventario.trim()) return alert("Indica o motivo do inventário antes de gravar.");
 
     /* ✅ ALERTA DISCREPÂNCIA NEGATIVA (Inventário < Teórico) */
     const negativas = rows
@@ -403,7 +413,9 @@ export default function Gerente({ onLogout }) {
       if (!ok) return; // cancela gravação
     }
 
-    const { error } = await supabase.from("inventario_real").upsert(rows);
+    const { error } = await supabase.rpc("gerente_gravar_inventario", {
+      p_itens: rows, p_motivo: motivoInventario.trim(), p_tipo: "mensal", p_mes: inventarioMes
+    });
 
     if (error) {
       mostrarErro("Não foi possível gravar o inventário mensal", error);
@@ -419,6 +431,7 @@ export default function Gerente({ onLogout }) {
     }
 
     setModoInventarioMensal(false);
+    setMotivoInventario("");
   }
 
   /* ===== HELPERS PDF ===== */
@@ -717,12 +730,20 @@ export default function Gerente({ onLogout }) {
                 <button style={styles.button} type="button" onClick={aplicarColagemInventario}>
                   📥 Aplicar colagem
                 </button>
-
-                <button style={styles.button} type="button" onClick={gravarInventarioMensal}>
-                  ✅ Gravar inventário do mês (Stock real)
-                </button>
               </div>
             </div>
+
+            <label style={{ display: "block", marginBottom: 10 }}>
+              Motivo do inventário (obrigatório)
+              <input
+                style={{ ...styles.input, display: "block", width: "min(100%, 520px)", boxSizing: "border-box" }}
+                type="text"
+                maxLength={500}
+                placeholder="Ex.: Contagem física de fim de mês"
+                value={motivoInventario}
+                onChange={e => setMotivoInventario(e.target.value)}
+              />
+            </label>
 
             <table style={styles.table}>
               <thead>
@@ -763,6 +784,39 @@ export default function Gerente({ onLogout }) {
                 ✅ Gravar inventário do mês (Stock real)
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div style={styles.card}>
+        <button style={styles.button} type="button" onClick={() => setHistoricoInventarioAberto(!historicoInventarioAberto)}>
+          {historicoInventarioAberto ? "Fechar" : "Ver"} histórico de correções do inventário
+        </button>
+        {historicoInventarioAberto && (
+          <div style={{ overflowX: "auto" }}>
+            <p>Últimos 100 registos, desde a ativação deste histórico.</p>
+            <table style={styles.table}>
+              <thead><tr>
+                <th style={styles.th}>Data</th><th style={styles.th}>Produto</th>
+                <th style={styles.th}>Anterior</th><th style={styles.th}>Novo</th>
+                <th style={styles.th}>Tipo</th><th style={styles.th}>Motivo</th>
+                <th style={styles.th}>Responsável</th>
+              </tr></thead>
+              <tbody>
+                {ajustesInventario.map(a => (
+                  <tr key={a.id}>
+                    <td style={styles.td}>{new Date(a.criado_em).toLocaleString("pt-PT")}</td>
+                    <td style={styles.td}>{a.produto}</td>
+                    <td style={styles.tdRight}>{a.quantidade_anterior === null ? "—" : fmtNum(a.quantidade_anterior, 3)}</td>
+                    <td style={styles.tdRight}>{fmtNum(a.quantidade_nova, 3)}</td>
+                    <td style={styles.td}>{a.tipo === "mensal" ? `Mensal (${a.mes_referencia})` : "Pontual"}</td>
+                    <td style={styles.td}>{a.motivo}</td>
+                    <td style={styles.td}>{a.autor_email}</td>
+                  </tr>
+                ))}
+                {!ajustesInventario.length && <tr><td style={styles.td} colSpan={7}>Ainda não há correções registadas.</td></tr>}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -1031,19 +1085,33 @@ export default function Gerente({ onLogout }) {
                                   value={inventarioReal[p.nome] ?? ""}
                                   onChange={e => setInventarioReal({ ...inventarioReal, [p.nome]: e.target.value })}
                                   onBlur={async () => {
-                                    const val = Number(String(inventarioReal[p.nome] ?? "").replace(",", "."));
-                                    if (!Number.isFinite(val)) return;
-
-                                    const nowIso = new Date().toISOString();
-
-                                    const { error } = await supabase.from("inventario_real").upsert({
-                                      produto: p.nome,
-                                      quantidade: val,
-                                      updated_at: nowIso
+                                    const raw = inventarioReal[p.nome];
+                                    const anterior = inventarioConfirmado[p.nome];
+                                    const repor = () => setInventarioReal(prev => ({ ...prev, [p.nome]: anterior ?? "" }));
+                                    if (raw === "" || raw === undefined || raw === null) {
+                                      repor();
+                                      return;
+                                    }
+                                    const val = Number(String(raw).replace(",", "."));
+                                    if (!Number.isFinite(val) || val < 0) {
+                                      alert("A quantidade deve ser zero ou superior.");
+                                      repor();
+                                      return;
+                                    }
+                                    if (anterior !== undefined && Number(anterior) === val) return;
+                                    const motivo = window.prompt(`Motivo da correção de ${p.nome}:`);
+                                    if (!motivo?.trim()) {
+                                      repor();
+                                      return;
+                                    }
+                                    const { error } = await supabase.rpc("gerente_gravar_inventario", {
+                                      p_itens: [{ produto: p.nome, quantidade: val }],
+                                      p_motivo: motivo.trim(), p_tipo: "pontual"
                                     });
 
                                     if (error) {
                                       mostrarErro(`Não foi possível atualizar o inventário de ${p.nome}`, error);
+                                      repor();
                                       return;
                                     }
                                     await fetchTudo();
