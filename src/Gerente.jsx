@@ -597,11 +597,15 @@ export default function Gerente({ onLogout }) {
 
   return (
     <div style={styles.app}>
-      <button onClick={onLogout} style={{ ...styles.button, ...styles.danger }}>
-        🔑 Sair
-      </button>
-
-      <h2>👔 Gerente — Controlo Completo</h2>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
+        <div>
+          <img src="/logo-cozinha-de-tacho.webp" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto" }} />
+          <h2 style={{ margin: "8px 0 0" }}>👔 Gerente — Controlo Completo</h2>
+        </div>
+        <button onClick={onLogout} style={{ ...styles.button, ...styles.danger }}>
+          🔑 Sair
+        </button>
+      </header>
 
       {/* ===== AVISOS (BASEADOS NO STOCK ATUAL) ===== */}
       {produtosAbaixoMinimo.length > 0 && (

@@ -33,6 +33,7 @@ const estilos = {
     background: "white",
     boxShadow: "0 12px 36px rgba(52,69,45,.10)"
   },
+  logo: { display: "block", width: "100%", maxWidth: 340, height: "auto", margin: "0 auto 14px" },
   perfis: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, margin: "20px 0" },
   perfil: {
     minHeight: 92,
@@ -155,7 +156,7 @@ export default function App() {
     <main style={estilos.pagina}>
       <section style={estilos.caixa}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 38 }}>🍲</div>
+          <img src="/logo-cozinha-de-tacho.webp" alt="Cozinha de Tacho" style={estilos.logo} />
           <h1 style={{ margin: "8px 0 4px" }}>Controlo Cozinha</h1>
           <p style={{ margin: 0, color: "#667064" }}>Escolhe o perfil e introduz o PIN</p>
         </div>
