@@ -7,11 +7,12 @@ import autoTable from "jspdf-autotable";
 
 /* ===== Estilos ===== */
 const styles = {
-  app: { padding: 20, fontFamily: "sans-serif" },
-  card: { border: "1px solid #ccc", borderRadius: 6, padding: 12, marginBottom: 12 },
-  input: { padding: "4px 6px", margin: "2px 4px" },
-  button: { padding: "4px 8px", marginLeft: 4, cursor: "pointer" },
-  danger: { backgroundColor: "#f44336", color: "white" },
+  app: { minHeight: "100vh", maxWidth: 1240, margin: "0 auto", padding: 16, fontFamily: "Arial, sans-serif" },
+  card: { border: "1px solid #d9ddd4", borderRadius: 14, padding: 16, marginBottom: 12, background: "white" },
+  input: { minHeight: 44, maxWidth: "100%", padding: "9px 12px", margin: "2px 0", border: "1px solid #d9ddd4", borderRadius: 9, background: "white", color: "#252b23", fontSize: 16 },
+  button: { minHeight: 44, padding: "9px 14px", border: "1px solid #536b45", borderRadius: 9, background: "#536b45", color: "white", fontSize: 15, fontWeight: 700, cursor: "pointer" },
+  secondary: { background: "white", color: "#34452d", borderColor: "#d9ddd4" },
+  danger: { backgroundColor: "#b42318", borderColor: "#b42318", color: "white" },
   warning: { color: "#e53935", fontWeight: "bold" },
   produtoLinha: { cursor: "pointer", fontWeight: "bold", padding: "6px 0" },
 
@@ -124,6 +125,7 @@ export default function Gerente({ onLogout }) {
   const [stockCarregado, setStockCarregado] = useState(false);
   const [erroStock, setErroStock] = useState("");
   const [produtoAberto, setProdutoAberto] = useState(null);
+  const [area, setArea] = useState("stock");
 
   /* ✅ Avisos começam fechados */
   const [avisosAbertos, setAvisosAbertos] = useState(false);
@@ -602,16 +604,28 @@ export default function Gerente({ onLogout }) {
   }
 
   return (
-    <div style={styles.app}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
+    <div className="operacao" style={styles.app}>
+      <header className="operacao-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
           <img src="/logo-cozinha-de-tacho.webp" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto" }} />
-          <h2 style={{ margin: "8px 0 0" }}>👔 Gerente — Controlo Completo</h2>
+          <h2 style={{ margin: "8px 0 0" }}>Gerente · Controlo de stock</h2>
         </div>
         <button onClick={onLogout} style={{ ...styles.button, ...styles.danger }}>
           🔑 Sair
         </button>
       </header>
+
+      <nav className="operacao-nav" aria-label="Secções do Gerente">
+        {[
+          ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"],
+          ["inventario", "🧾 Inventário"], ["produtos", "📦 Produtos"],
+          ["historico", "📜 Histórico"]
+        ].map(([id, titulo]) => (
+          <button key={id} type="button" aria-pressed={area === id} onClick={() => setArea(id)}>{titulo}</button>
+        ))}
+      </nav>
+
+      {area === "stock" && <>
 
       {/* ===== AVISOS (BASEADOS NO STOCK ATUAL) ===== */}
       {produtosAbaixoMinimo.length > 0 && (
@@ -625,7 +639,7 @@ export default function Gerente({ onLogout }) {
           </div>
 
           {avisosAbertos && (
-            <table style={styles.table}>
+            <table className="mobile-cards" style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Produto</th>
@@ -640,9 +654,9 @@ export default function Gerente({ onLogout }) {
 
                   return (
                     <tr key={p.nome}>
-                      <td style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
-                      <td style={styles.td}>{fmtNum(atual, 3)}</td>
-                      <td style={styles.td}>{fmtNum(minimo, 3)}</td>
+                      <td data-label="Produto" style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
+                      <td data-label="Stock atual" style={styles.td}>{fmtNum(atual, 3)}</td>
+                      <td data-label="Mínimo" style={styles.td}>{fmtNum(minimo, 3)}</td>
                     </tr>
                   );
                 })}
@@ -658,7 +672,7 @@ export default function Gerente({ onLogout }) {
         </div>
       )}
 
-      <h3>💰 Valor total de stock: {valorTotalStock.toFixed(2)} €</h3>
+      <div style={styles.card}><h3 style={{ margin: 0 }}>💰 Valor total de stock: {valorTotalStock.toFixed(2)} €</h3></div>
 
       {/* ✅ BOTÃO PDF STOCK */}
       <div style={{ marginBottom: 12 }}>
@@ -666,10 +680,21 @@ export default function Gerente({ onLogout }) {
           📄 PDF Stock
         </button>
       </div>
+      <div style={styles.card}>
+        <h3 style={{ marginTop: 0 }}>Ações rápidas</h3>
+        <div className="operacao-tools">
+          <button style={styles.button} type="button" onClick={() => setArea("movimentos")}>Registar entrada</button>
+          <button style={{ ...styles.button, ...styles.secondary }} type="button" onClick={() => setArea("inventario")}>Fazer inventário</button>
+          <button style={{ ...styles.button, ...styles.secondary }} type="button" onClick={() => setArea("produtos")}>Consultar produtos e stock</button>
+        </div>
+      </div>
+      </>}
+
+      {area === "inventario" && <>
 
       {/* ✅ INVENTÁRIO MENSAL (RÁPIDO) */}
       <div style={{ ...styles.card, borderColor: "#4caf50" }}>
-        <h3>🧾 Inventário mensal (rápido) → atualiza Stock real</h3>
+        <h3 className="operacao-section-title">🧾 Inventário mensal</h3><p className="operacao-muted">A contagem atualiza o stock real.</p>
 
         {!modoInventarioMensal ? (
           <div>
@@ -696,7 +721,7 @@ export default function Gerente({ onLogout }) {
               />
 
               <input
-                style={{ ...styles.input, width: 260 }}
+                style={{ ...styles.input, width: "min(100%, 280px)" }}
                 placeholder="Pesquisar no inventário…"
                 value={inventarioFiltro}
                 onChange={e => setInventarioFiltro(e.target.value)}
@@ -745,7 +770,7 @@ export default function Gerente({ onLogout }) {
               />
             </label>
 
-            <table style={styles.table}>
+            <table className="mobile-cards" style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Produto</th>
@@ -760,10 +785,10 @@ export default function Gerente({ onLogout }) {
 
                   return (
                     <tr key={`inv-${p.nome}`}>
-                      <td style={styles.td}>{p.nome}</td>
-                      <td style={styles.td}>{p.unidade || ""}</td>
-                      <td style={styles.tdRight}>{fmtNum(stockTeo, 3)}</td>
-                      <td style={styles.tdRight}>
+                      <td data-label="Produto" style={styles.td}>{p.nome}</td>
+                      <td data-label="Unidade" style={styles.td}>{p.unidade || ""}</td>
+                      <td data-label="Stock teórico" style={styles.tdRight}>{fmtNum(stockTeo, 3)}</td>
+                      <td data-label="Stock real" style={styles.tdRight}>
                         <input
                           style={{ ...styles.input, width: 110, textAlign: "right" }}
                           type="number"
@@ -788,6 +813,9 @@ export default function Gerente({ onLogout }) {
         )}
       </div>
 
+      </>}
+
+      {area === "historico" && <>
       <div style={styles.card}>
         <button style={styles.button} type="button" onClick={() => setHistoricoInventarioAberto(!historicoInventarioAberto)}>
           {historicoInventarioAberto ? "Fechar" : "Ver"} histórico de correções do inventário
@@ -795,7 +823,7 @@ export default function Gerente({ onLogout }) {
         {historicoInventarioAberto && (
           <div style={{ overflowX: "auto" }}>
             <p>Últimos 100 registos, desde a ativação deste histórico.</p>
-            <table style={styles.table}>
+            <table className="mobile-cards" style={styles.table}>
               <thead><tr>
                 <th style={styles.th}>Data</th><th style={styles.th}>Produto</th>
                 <th style={styles.th}>Anterior</th><th style={styles.th}>Novo</th>
@@ -805,25 +833,29 @@ export default function Gerente({ onLogout }) {
               <tbody>
                 {ajustesInventario.map(a => (
                   <tr key={a.id}>
-                    <td style={styles.td}>{new Date(a.criado_em).toLocaleString("pt-PT")}</td>
-                    <td style={styles.td}>{a.produto}</td>
-                    <td style={styles.tdRight}>{a.quantidade_anterior === null ? "—" : fmtNum(a.quantidade_anterior, 3)}</td>
-                    <td style={styles.tdRight}>{fmtNum(a.quantidade_nova, 3)}</td>
-                    <td style={styles.td}>{a.tipo === "mensal" ? `Mensal (${a.mes_referencia})` : "Pontual"}</td>
-                    <td style={styles.td}>{a.motivo}</td>
-                    <td style={styles.td}>{a.autor_email}</td>
+                    <td data-label="Data" style={styles.td}>{new Date(a.criado_em).toLocaleString("pt-PT")}</td>
+                    <td data-label="Produto" style={styles.td}>{a.produto}</td>
+                    <td data-label="Anterior" style={styles.tdRight}>{a.quantidade_anterior === null ? "—" : fmtNum(a.quantidade_anterior, 3)}</td>
+                    <td data-label="Novo" style={styles.tdRight}>{fmtNum(a.quantidade_nova, 3)}</td>
+                    <td data-label="Tipo" style={styles.td}>{a.tipo === "mensal" ? `Mensal (${a.mes_referencia})` : "Pontual"}</td>
+                    <td data-label="Motivo" style={styles.td}>{a.motivo}</td>
+                    <td data-label="Responsável" style={styles.td}>{a.autor_email}</td>
                   </tr>
                 ))}
-                {!ajustesInventario.length && <tr><td style={styles.td} colSpan={7}>Ainda não há correções registadas.</td></tr>}
+                {!ajustesInventario.length && <tr><td data-label="" style={styles.td} colSpan={7}>Ainda não há correções registadas.</td></tr>}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
+      </>}
+
+      {area === "produtos" && <>
       {/* ===== PRODUTO (CRIAR / EDITAR) ===== */}
-      <h3>📦 Produto</h3>
-      <form
+      <div style={styles.card}>
+      <h3 className="operacao-section-title">📦 Produto</h3>
+      <form className="operacao-form"
         onSubmit={async e => {
           e.preventDefault();
 
@@ -911,10 +943,15 @@ export default function Gerente({ onLogout }) {
           {produtoNovo.id ? "Guardar alterações" : "Adicionar"}
         </button>
       </form>
+      </div>
 
+      </>}
+
+      {area === "movimentos" && <>
       {/* ===== ENTRADA DE STOCK ===== */}
-      <h3>➕ Entrada de Stock</h3>
-      <form
+      <div style={styles.card}>
+      <h3 className="operacao-section-title">➕ Entrada de stock</h3>
+      <form className="operacao-form"
         onSubmit={async e => {
           e.preventDefault();
 
@@ -976,13 +1013,17 @@ export default function Gerente({ onLogout }) {
         />
         <button style={styles.button}>Registar</button>
       </form>
+      </div>
 
+      </>}
+
+      {area === "produtos" && <>
       {/* ===== LISTA DE PRODUTOS (✅ CAMPOS COMPLETOS + MAIS BONITO) ===== */}
-      <h3>📝 Produtos</h3>
+      <h3 className="operacao-section-title">📝 Produtos e stock</h3>
 
-      <div style={{ marginBottom: 8 }}>
+      <div className="operacao-tools">
         <input
-          style={{ ...styles.input, width: 260 }}
+          style={styles.input}
           placeholder="Pesquisar produto…"
           value={pesquisaProduto}
           onChange={e => setPesquisaProduto(e.target.value)}
@@ -1003,28 +1044,22 @@ export default function Gerente({ onLogout }) {
 
         if (pesquisa && listaFiltrada.length === 0) return null;
 
-        const aberta = !!procedenciasAbertas[proc];
+        const aberta = !!procedenciasAbertas[proc] || !!pesquisa;
 
         return (
           <div key={proc} style={styles.card}>
-            <div
-              style={{
-                ...styles.produtoLinha,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}
+            <button type="button" className="operacao-group" aria-expanded={aberta}
               onClick={() => toggleProcedencia(proc)}
             >
               <span>{aberta ? "▼" : "▶"} {proc}</span>
               <span style={{ fontWeight: "normal" }}>
                 {listaFiltrada.length}/{listaTotal.length}
               </span>
-            </div>
+            </button>
 
             {aberta && (
-              <div style={{ marginLeft: 8, marginTop: 8 }}>
-                <table style={styles.tableProdutos}>
+              <div className="operacao-table-scroll" style={{ marginTop: 8 }}>
+                <table className="mobile-cards products-table" style={styles.tableProdutos}>
                   <colgroup>
                     <col style={{ width: "26%" }} />
                     <col style={{ width: "8%" }} />
@@ -1065,14 +1100,14 @@ export default function Gerente({ onLogout }) {
                         return (
                           <>
                             <tr key={`${proc}-${p.nome}`} style={abaixo ? styles.rowBad : undefined}>
-                              <td style={{ ...styles.tdProdutos, ...styles.nomeProdutoCell }} title={p.nome}>
+                              <td data-label="Produto" style={{ ...styles.tdProdutos, ...styles.nomeProdutoCell }} title={p.nome}>
                                 {p.nome}
                               </td>
 
-                              <td style={styles.tdProdutos}>{p.unidade || ""}</td>
-                              <td style={styles.tdProdutosRight}>{fmtNum(stockTeo, 3)}</td>
+                              <td data-label="Unidade" style={styles.tdProdutos}>{p.unidade || ""}</td>
+                              <td data-label="Stock teórico" style={styles.tdProdutosRight}>{fmtNum(stockTeo, 3)}</td>
 
-                              <td style={styles.tdProdutosRight}>
+                              <td data-label="Inventário inicial" style={styles.tdProdutosRight}>
                                 <input
                                   style={{
                                     ...styles.input,
@@ -1120,11 +1155,11 @@ export default function Gerente({ onLogout }) {
                                 />
                               </td>
 
-                              <td style={styles.tdProdutosRight}>{fmtNum(stockAjust, 3)}</td>
-                              <td style={styles.tdProdutosRight}>{fmtNum(minimo, 3)}</td>
-                              <td style={styles.tdProdutosRight}>{fmtNum(preco, 2)} €</td>
+                              <td data-label="Stock atual" style={styles.tdProdutosRight}>{fmtNum(stockAjust, 3)}</td>
+                              <td data-label="Mínimo" style={styles.tdProdutosRight}>{fmtNum(minimo, 3)}</td>
+                              <td data-label="Preço" style={styles.tdProdutosRight}>{fmtNum(preco, 2)} €</td>
 
-                              <td style={styles.tdProdutosRight}>
+                              <td data-label="Ações" style={styles.tdProdutosRight}>
                                 <button
                                   style={{ ...styles.button, width: "100%" }}
                                   type="button"
@@ -1137,7 +1172,7 @@ export default function Gerente({ onLogout }) {
 
                             {aberto && (
                               <tr key={`${proc}-${p.nome}-acoes`}>
-                                <td style={styles.tdProdutos} colSpan={8}>
+                                <td data-label="" style={styles.tdProdutos} colSpan={8}>
                                   <button style={styles.button} onClick={() => setProdutoNovo(p)} type="button">
                                     ✏ Editar
                                   </button>
@@ -1177,6 +1212,9 @@ export default function Gerente({ onLogout }) {
         );
       })}
 
+      </>}
+
+      {area === "historico" && <>
       {/* ✅ HISTÓRICO ENTRADAS (CARD + TOGGLE) */}
       <div style={styles.card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1219,7 +1257,7 @@ export default function Gerente({ onLogout }) {
               </button>
             </div>
 
-            <table style={styles.tableHist}>
+            <table className="mobile-cards" style={styles.tableHist}>
               <colgroup>
                 <col style={{ width: "34%" }} />
                 <col style={{ width: "10%" }} />
@@ -1243,18 +1281,18 @@ export default function Gerente({ onLogout }) {
                   const { data, hora } = formatDateTimeParts(e.datahora);
                   return (
                     <tr key={e.id}>
-                      <td style={styles.tdHist} title={e.produto || ""}>{e.produto || ""}</td>
-                      <td style={styles.tdHist}>{getUnidadeByNome(e.produto)}</td>
-                      <td style={styles.tdHistRight}>{fmtNum(e.quantidade, 3)}</td>
-                      <td style={styles.tdHist}>{data}</td>
-                      <td style={styles.tdHist}>{hora}</td>
-                      <td style={styles.tdHist}>Gerente</td>
+                      <td data-label="Produto" style={styles.tdHist} title={e.produto || ""}>{e.produto || ""}</td>
+                      <td data-label="Unidade" style={styles.tdHist}>{getUnidadeByNome(e.produto)}</td>
+                      <td data-label="Quantidade" style={styles.tdHistRight}>{fmtNum(e.quantidade, 3)}</td>
+                      <td data-label="Data" style={styles.tdHist}>{data}</td>
+                      <td data-label="Hora" style={styles.tdHist}>{hora}</td>
+                      <td data-label="Responsável" style={styles.tdHist}>Gerente</td>
                     </tr>
                   );
                 })}
                 {entradasFiltradas.length === 0 && (
                   <tr>
-                    <td style={styles.tdHist} colSpan={6}>Sem entradas no intervalo.</td>
+                    <td data-label="" style={styles.tdHist} colSpan={6}>Sem entradas no intervalo.</td>
                   </tr>
                 )}
               </tbody>
@@ -1311,7 +1349,7 @@ export default function Gerente({ onLogout }) {
               </button>
             </div>
 
-            <table style={styles.tableHist}>
+            <table className="mobile-cards" style={styles.tableHist}>
               <colgroup>
                 <col style={{ width: "34%" }} />
                 <col style={{ width: "10%" }} />
@@ -1335,18 +1373,18 @@ export default function Gerente({ onLogout }) {
                   const { data, hora } = formatDateTimeParts(s.dataHora);
                   return (
                     <tr key={s.id}>
-                      <td style={styles.tdHist} title={s.produto || ""}>{s.produto || ""}</td>
-                      <td style={styles.tdHist}>{getUnidadeByNome(s.produto)}</td>
-                      <td style={styles.tdHistRight}>{fmtNum(s.quantidade, 3)}</td>
-                      <td style={styles.tdHist}>{data}</td>
-                      <td style={styles.tdHist}>{hora}</td>
-                      <td style={styles.tdHist}>{s.responsavel || "—"}</td>
+                      <td data-label="Produto" style={styles.tdHist} title={s.produto || ""}>{s.produto || ""}</td>
+                      <td data-label="Unidade" style={styles.tdHist}>{getUnidadeByNome(s.produto)}</td>
+                      <td data-label="Quantidade" style={styles.tdHistRight}>{fmtNum(s.quantidade, 3)}</td>
+                      <td data-label="Data" style={styles.tdHist}>{data}</td>
+                      <td data-label="Hora" style={styles.tdHist}>{hora}</td>
+                      <td data-label="Responsável" style={styles.tdHist}>{s.responsavel || "—"}</td>
                     </tr>
                   );
                 })}
                 {saidasFiltradas.length === 0 && (
                   <tr>
-                    <td style={styles.tdHist} colSpan={6}>Sem saídas no intervalo.</td>
+                    <td data-label="" style={styles.tdHist} colSpan={6}>Sem saídas no intervalo.</td>
                   </tr>
                 )}
               </tbody>
@@ -1360,6 +1398,7 @@ export default function Gerente({ onLogout }) {
           </div>
         )}
       </div>
+      </>}
     </div>
   );
 }
