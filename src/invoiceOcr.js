@@ -147,6 +147,40 @@ async function prepararImagem(ficheiro, graus) {
   }
 }
 
+async function lerAguaEmColunas(ficheiro, worker, produtos, foto) {
+  const lerColuna = async (graus, inicioX, fimX) => {
+    const imagem = await prepararImagem(ficheiro, graus);
+    const recorte = document.createElement("canvas");
+    const x = Math.round(imagem.width * inicioX);
+    const y = Math.round(imagem.height * 0.25);
+    const largura = Math.round(imagem.width * (fimX - inicioX));
+    const altura = Math.round(imagem.height * 0.18);
+    recorte.width = largura * 2;
+    recorte.height = altura * 2;
+    recorte.getContext("2d").drawImage(imagem, x, y, largura, altura,
+      0, 0, recorte.width, recorte.height);
+    const { data } = await worker.recognize(recorte);
+    return data.text;
+  };
+
+  await worker.setParameters({ tessedit_pageseg_mode: "6" });
+  const nomes = await lerColuna(4, 0.02, 0.54);
+  const numeros = await lerColuna(0, 0.49, 0.99);
+  const linhaAgua = nomes.split(/\r?\n/).find(linha => /agua\s+serrana/i.test(normalizar(linha)));
+  if (!linhaAgua || !/depo/i.test(nomes)) return [];
+  const valores = [...numeros.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(?:UNID|UND|UN)\b/gi)]
+    .map(resultado => ({ quantidade: numero(resultado[1]), fim: resultado.index + resultado[0].length }));
+  if (valores.length !== 2 || valores[0].quantidade <= 0
+    || valores[1].quantidade !== valores[0].quantidade * 24) return [];
+  const preco = numeros.slice(valores[0].fim).match(/\b\d+[.,]\d{2}\b/);
+  const produto = encontrarProduto(linhaAgua, produtos);
+  if (!produto || !/agua serrana/.test(normalizar(produto.nome))) return [];
+  // O valor SDR confirma as garrafas, mas nunca gera uma linha de stock.
+  const linha = `${linhaAgua.replace(/\s+$/g, "")} SDR ${valores[0].quantidade},00 UND ${preco ? preco[0] : ""}`;
+  const deposito = `2921 Deposito SDR ${valores[1].quantidade},00 UND 0,10`;
+  return interpretarTextoFatura(`${linha}\n${deposito}`, produtos, foto);
+}
+
 export async function lerFotografias(ficheiros, produtos, onProgress) {
   const resultados = [];
   let fotoAtual = 0;
@@ -190,6 +224,12 @@ export async function lerFotografias(ficheiros, produtos, onProgress) {
           if (pontuacao(melhor) >= 3) break;
         }
         await worker.setParameters({ tessedit_pageseg_mode: "6" });
+      }
+      if (!melhor.some(linha => /agua serrana/.test(normalizar(linha.produto))
+        && linha.quantidade !== "")) {
+        const aguaEmColunas = await lerAguaEmColunas(ficheiros[i], worker, produtos, i + 1);
+        if (aguaEmColunas.length) melhor = [...melhor.filter(linha =>
+          !/agua serrana/.test(normalizar(linha.produto))), ...aguaEmColunas];
       }
       resultados.push(...melhor);
       onProgress?.((i + 1) / ficheiros.length);
