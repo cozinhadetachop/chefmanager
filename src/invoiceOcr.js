@@ -85,7 +85,9 @@ export function interpretarTextoFatura(texto, produtos, foto) {
       // os números que se seguem são preços, IVA e outros valores.
       const quantidades = [...linha.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(KG|G|LT|L|ML|UNID|UND|UN|CX|PCT)\b/gi)];
       const total = quantidades.at(-1);
-      const quantidade = total
+      // Uma linha SDR pode faturar packs, enquanto o stock conta garrafas.
+      // Sem conhecer a embalagem, pedimos a quantidade na unidade do stock.
+      const quantidade = /\bSDR\b/i.test(linha) ? "" : total
         ? quantidadeNaUnidadeDoStock(linha, numero(total[1]), total[2], produto, total.index)
         : "";
       const depoisDaQuantidade = total ? linha.slice(total.index + total[0].length) : "";
