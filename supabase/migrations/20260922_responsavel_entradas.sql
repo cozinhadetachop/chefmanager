@@ -1,5 +1,6 @@
 -- Regista no servidor qual o perfil que confirmou cada entrada.
 alter table public.entradas add column if not exists responsavel text;
+alter table public.entradas alter column responsavel set default 'Gerente';
 
 create or replace function public.chef_registar_entradas(p_movimentos jsonb)
 returns void
