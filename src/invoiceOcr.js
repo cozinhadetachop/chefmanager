@@ -73,9 +73,14 @@ function pareceCabecalho(linha) {
 }
 
 export function interpretarTextoFatura(texto, produtos, foto) {
-  return String(texto || "")
+  const linhasTexto = String(texto || "")
     .split(/\r?\n/)
-    .map(linha => linha.replace(/\s+/g, " ").trim())
+    .map(linha => linha.replace(/\s+/g, " ").trim());
+  const linhaDeposito = linhasTexto.find(linha => /\bdep[oó]sito\s*sdr\b/i.test(linha));
+  const garrafasDeposito = numero(linhaDeposito?.match(/(\d+(?:[.,]\d{1,3})?)\s*(?:UNID|UND|UN)\b/i)?.[1] || "");
+  const linhasAguaSDR = linhasTexto.filter(linha => /\b[aá]gua\b/i.test(linha) && /\bSDR\b/i.test(linha));
+
+  return linhasTexto
     .filter(linha => linha.length >= 4 && /[a-záàâãéêíóôõúç]/i.test(linha) && /\d/.test(linha))
     .filter(linha => !pareceCabecalho(linha) && !/\bdep[oó]sito\s*sdr\b/i.test(linha))
     .map((linha, indice) => {
@@ -85,19 +90,26 @@ export function interpretarTextoFatura(texto, produtos, foto) {
       // os números que se seguem são preços, IVA e outros valores.
       const quantidades = [...linha.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(KG|G|LT|L|ML|UNID|UND|UN|CX|PCT)\b/gi)];
       const total = quantidades.at(-1);
-      // Uma linha SDR pode faturar packs, enquanto o stock conta garrafas.
-      // Sem conhecer a embalagem, pedimos a quantidade na unidade do stock.
-      const quantidade = /\bSDR\b/i.test(linha) ? "" : total
+      // Neste fornecedor, cada pack de Água Serrana 0,5 L tem 24 garrafas.
+      // Só preenchemos automaticamente se o depósito confirmar a conversão
+      // e houver uma única linha de água SDR nesta fotografia.
+      const packs = total ? numero(total[1]) : null;
+      const depositoConfirma = produto && /agua serrana/.test(normalizar(produto.nome))
+        && normalizar(produto.unidade) === "un" && linhasAguaSDR.length === 1
+        && packs > 0 && garrafasDeposito === packs * 24;
+      const quantidade = depositoConfirma ? garrafasDeposito : /\bSDR\b/i.test(linha) ? "" : total
         ? quantidadeNaUnidadeDoStock(linha, numero(total[1]), total[2], produto, total.index)
         : "";
       const depoisDaQuantidade = total ? linha.slice(total.index + total[0].length) : "";
       const preco = depoisDaQuantidade.match(/\d+[.,]\d{2}\b/);
-      const precoFatura = preco ? numero(preco[0]) : "";
+      const precoFatura = preco ? (depositoConfirma
+        ? Math.round(numero(preco[0]) / 24 * 10000) / 10000
+        : numero(preco[0])) : "";
 
       return {
         id: `${Date.now()}-${foto}-${indice}-${Math.random().toString(36).slice(2)}`,
         foto,
-        descricao: linha,
+        descricao: depositoConfirma ? `${linha} · ${packs} packs × 24 garrafas` : linha,
         produto: produto?.nome || "",
         quantidade,
         precoFatura,
