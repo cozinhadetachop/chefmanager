@@ -14,6 +14,28 @@ function numero(valor) {
   return Number.isFinite(n) ? n : null;
 }
 
+function quantidadeNaUnidadeDoStock(linha, valor, unidadeFatura, produto, fimDescricao) {
+  const unidadeStock = normalizar(produto?.unidade);
+  if (!unidadeStock) return valor;
+  const unidade = unidadeFatura.toLowerCase().replace("und", "un").replace("lt", "l");
+  if (unidade === unidadeStock) return valor;
+
+  // Uma caixa/embalagem não é automaticamente um quilograma ou um litro.
+  // Só convertemos se o tamanho da embalagem estiver legível na descrição.
+  if (["un", "cx", "pct"].includes(unidade) && ["kg", "g", "l", "ml"].includes(unidadeStock)) {
+    const embalagens = [...linha.slice(0, fimDescricao).matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(KG|G|LT|L|ML)\b/gi)];
+    const embalagem = embalagens.at(-1);
+    if (!embalagem) return "";
+    const medida = embalagem[2].toLowerCase().replace("lt", "l");
+    if (["kg", "g"].includes(medida) !== ["kg", "g"].includes(unidadeStock)) return "";
+    const fatores = { kg: 1000, g: 1, l: 1000, ml: 1 };
+    return Math.round(valor * numero(embalagem[1]) * fatores[medida] / fatores[unidadeStock] * 1000) / 1000;
+  }
+
+  // Se as unidades não coincidirem, a quantidade requer confirmação manual.
+  return "";
+}
+
 function encontrarProduto(linha, produtos) {
   const texto = normalizar(linha);
   const correspondencias = produtos
@@ -63,7 +85,9 @@ export function interpretarTextoFatura(texto, produtos, foto) {
       // os números que se seguem são preços, IVA e outros valores.
       const quantidades = [...linha.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(KG|G|L|ML|UN|UND|CX|PCT)\b/gi)];
       const total = quantidades.at(-1);
-      const quantidade = total ? numero(total[1]) : "";
+      const quantidade = total
+        ? quantidadeNaUnidadeDoStock(linha, numero(total[1]), total[2], produto, total.index)
+        : "";
       const depoisDaQuantidade = total ? linha.slice(total.index + total[0].length) : "";
       const preco = depoisDaQuantidade.match(/\d+[.,]\d{2}\b/);
       const precoFatura = preco ? numero(preco[0]) : "";
