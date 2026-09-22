@@ -77,13 +77,13 @@ export function interpretarTextoFatura(texto, produtos, foto) {
     .split(/\r?\n/)
     .map(linha => linha.replace(/\s+/g, " ").trim())
     .filter(linha => linha.length >= 4 && /[a-záàâãéêíóôõúç]/i.test(linha) && /\d/.test(linha))
-    .filter(linha => !pareceCabecalho(linha))
+    .filter(linha => !pareceCabecalho(linha) && !/\bdep[oó]sito\s*sdr\b/i.test(linha))
     .map((linha, indice) => {
       const produto = encontrarProduto(linha, produtos);
       // As faturas com colunas Vol / Qt.Vol / Qt.Total repetem a unidade.
       // A última quantidade acompanhada de unidade é a quantidade total;
       // os números que se seguem são preços, IVA e outros valores.
-      const quantidades = [...linha.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(KG|G|L|ML|UN|UND|CX|PCT)\b/gi)];
+      const quantidades = [...linha.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(KG|G|LT|L|ML|UNID|UND|UN|CX|PCT)\b/gi)];
       const total = quantidades.at(-1);
       const quantidade = total
         ? quantidadeNaUnidadeDoStock(linha, numero(total[1]), total[2], produto, total.index)
@@ -105,13 +105,14 @@ export function interpretarTextoFatura(texto, produtos, foto) {
     // Uma linha sem quantidade/preço só é mostrada quando parece um artigo
     // cuja leitura ficou incompleta. Evita confundir datas e rodapés com stock.
     .filter(linha => (linha.quantidade !== "" && linha.precoFatura !== "")
-      || /^\d{4,8}\s+[a-záàâãéêíóôõúç]{3}/i.test(linha.descricao));
+      || /^\d{3,8}\s+[a-záàâãéêíóôõúç]{3}/i.test(linha.descricao)
+      || (linha.produto && /\d/.test(linha.descricao)));
 }
 
 async function prepararImagem(ficheiro, graus) {
   const imagem = await createImageBitmap(ficheiro);
   try {
-    const rodada = graus % 180 !== 0;
+    const rodada = Math.abs(graus) % 180 === 90;
     const largura = rodada ? imagem.height : imagem.width;
     const altura = rodada ? imagem.width : imagem.height;
     const escala = Math.min(2, Math.max(1, 2800 / Math.max(largura, altura)));
@@ -160,6 +161,21 @@ export async function lerFotografias(ficheiros, produtos, onProgress) {
         }
         onProgress?.((i + (tentativa + 1) / 3) / ficheiros.length);
         if (linhasComQuantidade.length >= 2) break;
+      }
+      // Faturas com texto pequeno e folha inclinada podem não produzir
+      // nenhuma linha completa na leitura normal. Tentamos alinhar a foto
+      // e ler blocos dispersos antes de desistir.
+      if (!melhor.some(linha => linha.quantidade !== "" && linha.precoFatura !== "")) {
+        await worker.setParameters({ tessedit_pageseg_mode: "11" });
+        for (const graus of [4, -4]) {
+          const imagem = await prepararImagem(ficheiros[i], graus);
+          const { data } = await worker.recognize(imagem);
+          const linhas = interpretarTextoFatura(data.text, produtos, i + 1);
+          const pontuacao = lista => lista.filter(linha => linha.quantidade !== "" && linha.precoFatura !== "").length * 2 + lista.filter(linha => linha.produto).length;
+          if (pontuacao(linhas) > pontuacao(melhor)) melhor = linhas;
+          if (pontuacao(melhor) >= 3) break;
+        }
+        await worker.setParameters({ tessedit_pageseg_mode: "6" });
       }
       resultados.push(...melhor);
       onProgress?.((i + 1) / ficheiros.length);
