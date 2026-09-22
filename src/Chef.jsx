@@ -407,7 +407,7 @@ export default function Chef({ onLogout }) {
             {!!linhasFatura.length && (
               <section style={estilos.card}>
                 <h3 style={{ marginTop: 0 }}>Validar leitura da fatura</h3>
-                <div style={estilos.nota}>Confirma obrigatoriamente o produto, a quantidade e o preço lido. O preço serve apenas para comparação e não será guardado.</div>
+                <div style={estilos.nota}>Compara todas as linhas com a fatura antes de confirmar. Confirma produto, quantidade e unidade do stock; embalagens podem exigir conversão (por exemplo, 3 garrafas de 5 L = 15 L). Se faltar algum artigo, adiciona-o manualmente. O preço é só para comparação e não será guardado.</div>
                 {linhasFatura.map(linha => {
                   const produto = produtos.find(p => p.nome === linha.produto);
                   return (
