@@ -174,11 +174,16 @@ async function lerAguaEmColunas(ficheiro, worker, produtos, foto) {
     || valores[1].quantidade !== valores[0].quantidade * 24) return [];
   const preco = numeros.slice(valores[0].fim).match(/\b\d+[.,]\d{2}\b/);
   const produto = encontrarProduto(linhaAgua, produtos);
-  if (!produto || !/agua serrana/.test(normalizar(produto.nome))) return [];
   // O valor SDR confirma as garrafas, mas nunca gera uma linha de stock.
-  const linha = `${linhaAgua.replace(/\s+$/g, "")} SDR ${valores[0].quantidade},00 UND ${preco ? preco[0] : ""}`;
-  const deposito = `2921 Deposito SDR ${valores[1].quantidade},00 UND 0,10`;
-  return interpretarTextoFatura(`${linha}\n${deposito}`, produtos, foto);
+  return [{
+    id: `${Date.now()}-${foto}-agua-${Math.random().toString(36).slice(2)}`,
+    foto,
+    descricao: `${linhaAgua.trim()} · ${valores[0].quantidade} packs × 24 garrafas (depósito SDR conferido)`,
+    produto: produto?.nome || "",
+    quantidade: valores[1].quantidade,
+    precoFatura: preco ? Math.round(numero(preco[0]) / 24 * 10000) / 10000 : "",
+    ignorar: false
+  }];
 }
 
 export async function lerFotografias(ficheiros, produtos, onProgress) {
@@ -204,26 +209,14 @@ export async function lerFotografias(ficheiros, produtos, onProgress) {
         const { data } = await worker.recognize(imagem);
         const linhas = interpretarTextoFatura(data.text, produtos, i + 1);
         const linhasComQuantidade = linhas.filter(linha => linha.quantidade !== "");
-        if (linhasComQuantidade.length > melhor.filter(linha => linha.quantidade !== "").length) {
+        const pontuacao = lista => lista.filter(linha => linha.quantidade !== "" && linha.precoFatura !== "").length * 10
+          + lista.filter(linha => linha.produto).length * 2 + lista.length;
+        if (pontuacao(linhas) > pontuacao(melhor)) {
           melhor = linhas;
         }
         onProgress?.((i + (tentativa + 1) / 3) / ficheiros.length);
-        if (linhasComQuantidade.length >= 2) break;
-      }
-      // Faturas com texto pequeno e folha inclinada podem não produzir
-      // nenhuma linha completa na leitura normal. Tentamos alinhar a foto
-      // e ler blocos dispersos antes de desistir.
-      if (!melhor.some(linha => linha.quantidade !== "" && linha.precoFatura !== "")) {
-        await worker.setParameters({ tessedit_pageseg_mode: "11" });
-        for (const graus of [4, -4]) {
-          const imagem = await prepararImagem(ficheiros[i], graus);
-          const { data } = await worker.recognize(imagem);
-          const linhas = interpretarTextoFatura(data.text, produtos, i + 1);
-          const pontuacao = lista => lista.filter(linha => linha.quantidade !== "" && linha.precoFatura !== "").length * 2 + lista.filter(linha => linha.produto).length;
-          if (pontuacao(linhas) > pontuacao(melhor)) melhor = linhas;
-          if (pontuacao(melhor) >= 3) break;
-        }
-        await worker.setParameters({ tessedit_pageseg_mode: "6" });
+        if (linhasComQuantidade.length >= 2
+          || (tentativa === 0 && linhas.some(linha => linha.produto && /^\d{3,8}\s+/i.test(linha.descricao)))) break;
       }
       if (!melhor.some(linha => /agua serrana/.test(normalizar(linha.produto))
         && linha.quantidade !== "")) {
