@@ -58,9 +58,15 @@ export function interpretarTextoFatura(texto, produtos, foto) {
     .filter(linha => !pareceCabecalho(linha))
     .map((linha, indice) => {
       const produto = encontrarProduto(linha, produtos);
-      const valores = (linha.match(/\d+(?:[.,]\d{1,3})?/g) || []).map(numero).filter(v => v !== null);
-      const quantidade = valores.length >= 3 ? valores[valores.length - 3] : valores[0] || "";
-      const precoFatura = valores.length >= 2 ? valores[valores.length - 2] : "";
+      // As faturas com colunas Vol / Qt.Vol / Qt.Total repetem a unidade.
+      // A última quantidade acompanhada de unidade é a quantidade total;
+      // os números que se seguem são preços, IVA e outros valores.
+      const quantidades = [...linha.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(KG|G|L|ML|UN|UND|CX|PCT)\b/gi)];
+      const total = quantidades.at(-1);
+      const quantidade = total ? numero(total[1]) : "";
+      const depoisDaQuantidade = total ? linha.slice(total.index + total[0].length) : "";
+      const preco = depoisDaQuantidade.match(/\d+[.,]\d{2}\b/);
+      const precoFatura = preco ? numero(preco[0]) : "";
 
       return {
         id: `${Date.now()}-${foto}-${indice}-${Math.random().toString(36).slice(2)}`,
@@ -71,7 +77,35 @@ export function interpretarTextoFatura(texto, produtos, foto) {
         precoFatura,
         ignorar: false
       };
-    });
+    })
+    // Uma linha sem quantidade/preço só é mostrada quando parece um artigo
+    // cuja leitura ficou incompleta. Evita confundir datas e rodapés com stock.
+    .filter(linha => (linha.quantidade !== "" && linha.precoFatura !== "")
+      || /^\d{4,8}\s+[a-záàâãéêíóôõúç]{3}/i.test(linha.descricao));
+}
+
+async function prepararImagem(ficheiro, graus) {
+  const imagem = await createImageBitmap(ficheiro);
+  try {
+    const rodada = graus % 180 !== 0;
+    const largura = rodada ? imagem.height : imagem.width;
+    const altura = rodada ? imagem.width : imagem.height;
+    const escala = Math.min(2, Math.max(1, 2800 / Math.max(largura, altura)));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(largura * escala);
+    canvas.height = Math.round(altura * escala);
+    const contexto = canvas.getContext("2d");
+    if (!contexto) throw new Error("Não foi possível preparar a fotografia.");
+    contexto.fillStyle = "white";
+    contexto.fillRect(0, 0, canvas.width, canvas.height);
+    contexto.translate(canvas.width / 2, canvas.height / 2);
+    contexto.rotate(graus * Math.PI / 180);
+    contexto.drawImage(imagem, -imagem.width * escala / 2, -imagem.height * escala / 2,
+      imagem.width * escala, imagem.height * escala);
+    return canvas;
+  } finally {
+    imagem.close?.();
+  }
 }
 
 export async function lerFotografias(ficheiros, produtos, onProgress) {
@@ -87,10 +121,23 @@ export async function lerFotografias(ficheiros, produtos, onProgress) {
   });
 
   try {
+    // Mantém a descrição e as quantidades da mesma linha na fatura tabular.
+    await worker.setParameters({ tessedit_pageseg_mode: "6" });
     for (let i = 0; i < ficheiros.length; i += 1) {
       fotoAtual = i;
-      const { data } = await worker.recognize(ficheiros[i]);
-      resultados.push(...interpretarTextoFatura(data.text, produtos, i + 1));
+      let melhor = [];
+      for (const [tentativa, graus] of [0, 90, 270].entries()) {
+        const imagem = await prepararImagem(ficheiros[i], graus);
+        const { data } = await worker.recognize(imagem);
+        const linhas = interpretarTextoFatura(data.text, produtos, i + 1);
+        const linhasComQuantidade = linhas.filter(linha => linha.quantidade !== "");
+        if (linhasComQuantidade.length > melhor.filter(linha => linha.quantidade !== "").length) {
+          melhor = linhas;
+        }
+        onProgress?.((i + (tentativa + 1) / 3) / ficheiros.length);
+        if (linhasComQuantidade.length >= 2) break;
+      }
+      resultados.push(...melhor);
       onProgress?.((i + 1) / ficheiros.length);
     }
   } finally {
