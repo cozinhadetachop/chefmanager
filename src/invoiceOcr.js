@@ -167,20 +167,23 @@ async function lerAguaEmColunas(ficheiro, worker, produtos, foto) {
   const nomes = await lerColuna(4, 0.02, 0.54);
   const numeros = await lerColuna(0, 0.49, 0.99);
   const linhaAgua = nomes.split(/\r?\n/).find(linha => /agua\s+serrana/i.test(normalizar(linha)));
-  if (!linhaAgua || !/depo/i.test(nomes)) return [];
+  if (!linhaAgua) return [];
   const valores = [...numeros.matchAll(/(\d+(?:[.,]\d{1,3})?)\s*(?:UNID|UND|UN)\b/gi)]
     .map(resultado => ({ quantidade: numero(resultado[1]), fim: resultado.index + resultado[0].length }));
-  if (valores.length !== 2 || valores[0].quantidade <= 0
-    || valores[1].quantidade !== valores[0].quantidade * 24) return [];
-  const preco = numeros.slice(valores[0].fim).match(/\b\d+[.,]\d{2}\b/);
+  const depositoConfirma = /depo/i.test(nomes) && valores.length === 2
+    && valores[0].quantidade > 0 && valores[1].quantidade === valores[0].quantidade * 24;
+  const preco = depositoConfirma ? numeros.slice(valores[0].fim).match(/\b\d+[.,]\d{2}\b/) : null;
   const produto = encontrarProduto(linhaAgua, produtos);
-  // O valor SDR confirma as garrafas, mas nunca gera uma linha de stock.
+  // Se o OCR não confirmar ambos os números, mostra a água para revisão.
+  // O valor SDR nunca gera uma linha de stock.
   return [{
     id: `${Date.now()}-${foto}-agua-${Math.random().toString(36).slice(2)}`,
     foto,
-    descricao: `${linhaAgua.trim()} · ${valores[0].quantidade} packs × 24 garrafas (depósito SDR conferido)`,
-    produto: produto?.nome || "",
-    quantidade: valores[1].quantidade,
+    descricao: depositoConfirma
+      ? `${linhaAgua.trim()} · ${valores[0].quantidade} packs × 24 garrafas (depósito SDR conferido)`
+      : `${linhaAgua.trim()} · Confirma a quantidade de garrafas na fatura`,
+    produto: produto && /agua serrana/.test(normalizar(produto.nome)) ? produto.nome : "",
+    quantidade: depositoConfirma ? valores[1].quantidade : "",
     precoFatura: preco ? Math.round(numero(preco[0]) / 24 * 10000) / 10000 : "",
     ignorar: false
   }];
@@ -222,7 +225,7 @@ export async function lerFotografias(ficheiros, produtos, onProgress) {
         && linha.quantidade !== "")) {
         const aguaEmColunas = await lerAguaEmColunas(ficheiros[i], worker, produtos, i + 1);
         if (aguaEmColunas.length) melhor = [...melhor.filter(linha =>
-          !/agua serrana/.test(normalizar(linha.produto))), ...aguaEmColunas];
+          !/agua serrana/.test(normalizar(linha.produto || linha.descricao))), ...aguaEmColunas];
       }
       resultados.push(...melhor);
       onProgress?.((i + 1) / ficheiros.length);
