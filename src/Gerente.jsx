@@ -1361,7 +1361,7 @@ export default function Gerente({ onLogout }) {
           {saidasFiltradas.length} saída(s) no intervalo atual
           {saidasAtualizadasEm && ` · Atualizado às ${saidasAtualizadasEm.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`}
         </p>
-        {erroSaidas && <p role="alert" style={styles.warning}>{erroSaidas}</p>
+        {erroSaidas && <p role="alert" style={styles.warning}>{erroSaidas}</p>}
 
         {saidasAbertas && (
           <>
