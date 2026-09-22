@@ -499,7 +499,7 @@ export default function Gerente({ onLogout }) {
 
     const rows = lista.map(e => {
       const { data, hora } = formatDateTimeParts(e.datahora);
-      return [e.produto || "", getUnidadeByNome(e.produto), String(e.quantidade ?? ""), data, hora, "Gerente"];
+      return [e.produto || "", getUnidadeByNome(e.produto), String(e.quantidade ?? ""), data, hora, e.responsavel || "—"];
     });
 
     autoTable(doc, {
@@ -1323,7 +1323,7 @@ export default function Gerente({ onLogout }) {
                       <td data-label="Quantidade" style={styles.tdHistRight}>{fmtNum(e.quantidade, 3)}</td>
                       <td data-label="Data" style={styles.tdHist}>{data}</td>
                       <td data-label="Hora" style={styles.tdHist}>{hora}</td>
-                      <td data-label="Responsável" style={styles.tdHist}>Gerente</td>
+                      <td data-label="Responsável" style={styles.tdHist}>{e.responsavel || "—"}</td>
                     </tr>
                   );
                 })}
