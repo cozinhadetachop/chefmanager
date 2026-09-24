@@ -36,6 +36,14 @@ export default function Equipa({ onLogout }) {
   const [pesquisaProduto, setPesquisaProduto] = useState("");
   const [procedenciasAbertas, setProcedenciasAbertas] = useState({}); // { "Makro": true, ... }
   const [mostrarProdutos, setMostrarProdutos] = useState(false);
+  const [favoritos, setFavoritos] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("equipa-favoritos") || "[]"); }
+    catch { return []; }
+  });
+  const [recentes, setRecentes] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("equipa-recentes") || "[]"); }
+    catch { return []; }
+  });
 
   /* ===== FETCH PRODUTOS ===== */
   useEffect(() => {
@@ -268,6 +276,41 @@ export default function Equipa({ onLogout }) {
     setLinhasImportadas(linhas => linhas.map(linha => linha.id === id ? { ...linha, [campo]: valor } : linha));
   }
 
+  function guardarFavoritos(lista) {
+    setFavoritos(lista);
+    window.localStorage.setItem("equipa-favoritos", JSON.stringify(lista));
+  }
+
+  function alternarFavorito(nome) {
+    guardarFavoritos(
+      favoritos.includes(nome)
+        ? favoritos.filter(item => item !== nome)
+        : [nome, ...favoritos].slice(0, 12)
+    );
+  }
+
+  function registarRecente(nome) {
+    if (!nome) return;
+    setRecentes(atual => {
+      const lista = [nome, ...atual.filter(item => item !== nome)].slice(0, 8);
+      window.localStorage.setItem("equipa-recentes", JSON.stringify(lista));
+      return lista;
+    });
+  }
+
+  function adicionarSaidaProvisoria(item) {
+    setSaidasProvisorias(atual => {
+      const existente = atual.find(linha => linha.produto === item.produto);
+      if (!existente) return [...atual, item];
+
+      return atual.map(linha => linha.produto === item.produto
+        ? { ...linha, quantidade: Number(linha.quantidade) + Number(item.quantidade), dataHora: new Date().toISOString() }
+        : linha
+      );
+    });
+    registarRecente(item.produto);
+  }
+
   function adicionarLinhasImportadas() {
     const invalidas = linhasImportadas.filter(linha => !linha.produto || !Number(linha.quantidade) || Number(linha.quantidade) <= 0);
     if (invalidas.length) {
@@ -286,7 +329,23 @@ export default function Equipa({ onLogout }) {
       };
     });
 
-    setSaidasProvisorias(atual => [...atual, ...novas]);
+    setSaidasProvisorias(atual => {
+      const resultado = [...atual];
+      novas.forEach(item => {
+        const indice = resultado.findIndex(linha => linha.produto === item.produto);
+        if (indice >= 0) {
+          resultado[indice] = {
+            ...resultado[indice],
+            quantidade: Number(resultado[indice].quantidade) + Number(item.quantidade),
+            dataHora: new Date().toISOString()
+          };
+        } else {
+          resultado.push(item);
+        }
+      });
+      return resultado;
+    });
+    novas.forEach(item => registarRecente(item.produto));
     setLinhasImportadas([]);
     setListaManual("");
     setFotografiasSaida([]);
@@ -447,6 +506,34 @@ export default function Equipa({ onLogout }) {
 
       {mostrarProdutos && (
         <>
+          {(favoritos.length > 0 || recentes.length > 0) && (
+            <div style={styles.card}>
+              {favoritos.length > 0 && (
+                <>
+                  <h3 className="operacao-section-title">⭐ Favoritos</h3>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: recentes.length ? 14 : 0 }}>
+                    {favoritos.map(nome => (
+                      <button key={nome} type="button" style={{ ...styles.button, ...styles.secondary, minHeight: 38, padding: "7px 10px" }} onClick={() => setPesquisaProduto(nome)}>
+                        {nome}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {recentes.length > 0 && (
+                <>
+                  <h3 className="operacao-section-title">🕘 Recentes</h3>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {recentes.map(nome => (
+                      <button key={nome} type="button" style={{ ...styles.button, ...styles.secondary, minHeight: 38, padding: "7px 10px" }} onClick={() => setPesquisaProduto(nome)}>
+                        {nome}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
       {/* ✅ Pesquisa + abrir/fechar tudo (igual ao gerente) */}
       <div className="operacao-tools" style={styles.card}>
         <input
@@ -497,6 +584,15 @@ export default function Equipa({ onLogout }) {
                     <div key={p.id} className="equipa-produto">
                       <strong>{p.nome} ({p.unidade})</strong>
 
+                      <button
+                        type="button"
+                        title={favoritos.includes(p.nome) ? "Retirar dos favoritos" : "Adicionar aos favoritos"}
+                        style={{ ...styles.button, ...styles.secondary, minWidth: 46, padding: "8px 10px" }}
+                        onClick={() => alternarFavorito(p.nome)}
+                      >
+                        {favoritos.includes(p.nome) ? "⭐" : "☆"}
+                      </button>
+
                       <input
                         style={styles.input}
                         type="number"
@@ -521,16 +617,13 @@ export default function Equipa({ onLogout }) {
                             return;
                           }
 
-                          setSaidasProvisorias(prev => [
-                            ...prev,
-                            {
-                              produto: p.nome,
-                              quantidade: qtd,
-                              unidade: p.unidade,
-                              setor: "Cozinha",
-                              dataHora: new Date().toISOString()
-                            }
-                          ]);
+                          adicionarSaidaProvisoria({
+                            produto: p.nome,
+                            quantidade: qtd,
+                            unidade: p.unidade,
+                            setor: "Cozinha",
+                            dataHora: new Date().toISOString()
+                          });
 
                           setQuantidades({ ...quantidades, [p.id]: "" });
                         }}
