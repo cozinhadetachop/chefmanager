@@ -738,7 +738,7 @@ export default function Gerente({ onLogout }) {
 
       <nav className="operacao-nav" aria-label="Secções do Gerente">
         {[
-          ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"],
+          ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"], ["fatura", "📷 Fatura"],
           ["inventario", "🧾 Inventário"], ["produtos", "📦 Produtos"],
           ["historico", "📜 Histórico"]
         ].map(([id, titulo]) => (
@@ -972,6 +972,76 @@ export default function Gerente({ onLogout }) {
 
       </>}
 
+      {area === "fatura" && <>
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">📷 Entrada por fotografia da fatura</h3>
+        <p className="operacao-muted">
+          Adiciona uma ou várias fotografias da fatura. As imagens são usadas apenas para a leitura e não ficam guardadas.
+        </p>
+        <input type="file" accept="image/*" capture="environment" multiple onChange={juntarFotografiasEntrada} />
+
+        {fotografiasEntrada.map((foto, indice) => (
+          <div key={`${foto.name}-${indice}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0" }}>
+            <span>Fotografia {indice + 1}: {foto.name}</span>
+            <button type="button" style={{ ...styles.button, ...styles.secondary }} onClick={() => setFotografiasEntrada(lista => lista.filter((_, i) => i !== indice))}>
+              Retirar
+            </button>
+          </div>
+        ))}
+
+        {!!fotografiasEntrada.length && (
+          <button type="button" style={{ ...styles.button, marginTop: 10 }} disabled={aLerFaturaEntrada} onClick={lerFaturaEntrada}>
+            {aLerFaturaEntrada ? `A ler… ${Math.round(progressoFaturaEntrada * 100)}%` : `Ler ${fotografiasEntrada.length} fotografia(s)`}
+          </button>
+        )}
+        {aLerFaturaEntrada && <progress style={{ width: "100%", marginTop: 10 }} max="1" value={progressoFaturaEntrada} />}
+      </div>
+
+      {!!linhasFaturaEntrada.length && (
+        <div style={styles.card}>
+          <h3 className="operacao-section-title">✅ Validar leitura da fatura</h3>
+          <p className="operacao-muted">
+            Confirma o produto e a quantidade de cada linha antes de registar as entradas. Se a embalagem exigir conversão, corrige a quantidade antes de confirmar.
+          </p>
+
+          {linhasFaturaEntrada.map(linha => {
+            const produtoAtual = produtos.find(p => p.nome === linha.produto);
+            const precoFatura = numeroEntrada(linha.precoFatura);
+            return (
+              <div key={linha.id} style={{ padding: "14px 0", borderBottom: "1px solid #d9ddd4" }}>
+                <div style={{ fontSize: 13, color: "#667064", marginBottom: 8 }}>Foto {linha.foto}: {linha.descricao}</div>
+                <div className="operacao-form">
+                  <select style={styles.input} value={linha.produto || ""} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "produto", e.target.value)}>
+                    <option value="">Selecionar produto…</option>
+                    {produtos.map(p => <option key={p.nome} value={p.nome}>{p.nome} ({p.unidade})</option>)}
+                  </select>
+
+                  <input style={styles.input} type="number" inputMode="decimal" min="0.001" step="0.001" placeholder="Quantidade" value={linha.quantidade} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "quantidade", e.target.value)} />
+
+                  <input style={styles.input} type="number" inputMode="decimal" min="0" step="0.001" placeholder="Preço da fatura" value={linha.precoFatura} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "precoFatura", e.target.value)} />
+
+                  <button type="button" style={{ ...styles.button, ...styles.danger }} onClick={() => setLinhasFaturaEntrada(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
+                </div>
+
+                {produtoAtual && (
+                  <div style={{ marginTop: 7, fontSize: 14 }}>
+                    Preço atual: <strong>{Number(produtoAtual.preco_unit || 0).toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</strong>
+                    {Number.isFinite(precoFatura) && precoFatura > 0 && <> · Preço da fatura: <strong>{precoFatura.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</strong></>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <button type="button" style={{ ...styles.button, width: "100%", marginTop: 12 }} disabled={aRegistarFaturaEntrada} onClick={registarEntradasDaFatura}>
+            {aRegistarFaturaEntrada ? "A registar…" : "✅ Confirmar e registar entradas"}
+          </button>
+        </div>
+      )}
+
+
+      </>}
+
       {area === "produtos" && <>
       {/* ===== PRODUTO (CRIAR / EDITAR) ===== */}
       <div style={styles.card}>
@@ -1136,72 +1206,6 @@ export default function Gerente({ onLogout }) {
       </form>
       </div>
 
-
-      <div style={styles.card}>
-        <h3 className="operacao-section-title">📷 Entrada por fotografia da fatura</h3>
-        <p className="operacao-muted">
-          Adiciona uma ou várias fotografias da fatura. As imagens são usadas apenas para a leitura e não ficam guardadas.
-        </p>
-        <input type="file" accept="image/*" capture="environment" multiple onChange={juntarFotografiasEntrada} />
-
-        {fotografiasEntrada.map((foto, indice) => (
-          <div key={`${foto.name}-${indice}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0" }}>
-            <span>Fotografia {indice + 1}: {foto.name}</span>
-            <button type="button" style={{ ...styles.button, ...styles.secondary }} onClick={() => setFotografiasEntrada(lista => lista.filter((_, i) => i !== indice))}>
-              Retirar
-            </button>
-          </div>
-        ))}
-
-        {!!fotografiasEntrada.length && (
-          <button type="button" style={{ ...styles.button, marginTop: 10 }} disabled={aLerFaturaEntrada} onClick={lerFaturaEntrada}>
-            {aLerFaturaEntrada ? `A ler… ${Math.round(progressoFaturaEntrada * 100)}%` : `Ler ${fotografiasEntrada.length} fotografia(s)`}
-          </button>
-        )}
-        {aLerFaturaEntrada && <progress style={{ width: "100%", marginTop: 10 }} max="1" value={progressoFaturaEntrada} />}
-      </div>
-
-      {!!linhasFaturaEntrada.length && (
-        <div style={styles.card}>
-          <h3 className="operacao-section-title">✅ Validar leitura da fatura</h3>
-          <p className="operacao-muted">
-            Confirma o produto e a quantidade de cada linha antes de registar as entradas. Se a embalagem exigir conversão, corrige a quantidade antes de confirmar.
-          </p>
-
-          {linhasFaturaEntrada.map(linha => {
-            const produtoAtual = produtos.find(p => p.nome === linha.produto);
-            const precoFatura = numeroEntrada(linha.precoFatura);
-            return (
-              <div key={linha.id} style={{ padding: "14px 0", borderBottom: "1px solid #d9ddd4" }}>
-                <div style={{ fontSize: 13, color: "#667064", marginBottom: 8 }}>Foto {linha.foto}: {linha.descricao}</div>
-                <div className="operacao-form">
-                  <select style={styles.input} value={linha.produto || ""} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "produto", e.target.value)}>
-                    <option value="">Selecionar produto…</option>
-                    {produtos.map(p => <option key={p.nome} value={p.nome}>{p.nome} ({p.unidade})</option>)}
-                  </select>
-
-                  <input style={styles.input} type="number" inputMode="decimal" min="0.001" step="0.001" placeholder="Quantidade" value={linha.quantidade} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "quantidade", e.target.value)} />
-
-                  <input style={styles.input} type="number" inputMode="decimal" min="0" step="0.001" placeholder="Preço da fatura" value={linha.precoFatura} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "precoFatura", e.target.value)} />
-
-                  <button type="button" style={{ ...styles.button, ...styles.danger }} onClick={() => setLinhasFaturaEntrada(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
-                </div>
-
-                {produtoAtual && (
-                  <div style={{ marginTop: 7, fontSize: 14 }}>
-                    Preço atual: <strong>{Number(produtoAtual.preco_unit || 0).toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</strong>
-                    {Number.isFinite(precoFatura) && precoFatura > 0 && <> · Preço da fatura: <strong>{precoFatura.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</strong></>}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <button type="button" style={{ ...styles.button, width: "100%", marginTop: 12 }} disabled={aRegistarFaturaEntrada} onClick={registarEntradasDaFatura}>
-            {aRegistarFaturaEntrada ? "A registar…" : "✅ Confirmar e registar entradas"}
-          </button>
-        </div>
-      )}
 
       </>}
 
