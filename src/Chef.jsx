@@ -454,7 +454,7 @@ export default function Chef({ onLogout }) {
       <div style={estilos.shell}>
         <header style={estilos.header}>
           <div>
-            <img src="/logo-cozinha-de-tacho.webp" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto", marginBottom: 8 }} />
+            <img src="/logo-cozinha-de-tacho.svg" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto", marginBottom: 8 }} />
             <h1 style={estilos.titulo}>👨‍🍳 Chef Cozinha</h1>
             <p style={estilos.subtitulo}>Controlo operacional do Cozinha de Tacho</p>
           </div>
