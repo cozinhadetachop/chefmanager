@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 
 /* ===== Estilos (iguais ao resto da app) ===== */
@@ -26,6 +26,7 @@ export default function Equipa({ onLogout }) {
   const [aLerFotografias, setALerFotografias] = useState(false);
   const [progressoFotografias, setProgressoFotografias] = useState(0);
   const [aOuvir, setAOuvir] = useState(false);
+  const reconhecimentoVoz = useRef(null);
 
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
@@ -70,7 +71,9 @@ export default function Equipa({ onLogout }) {
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
 
-  function ditarLista() {
+  function iniciarDitado() {
+    if (aOuvir) return;
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Este navegador não suporta ditado por voz. Tenta no Chrome ou Edge.");
@@ -82,10 +85,19 @@ export default function Equipa({ onLogout }) {
     recognition.continuous = true;
     recognition.interimResults = false;
 
-    recognition.onstart = () => setAOuvir(true);
-    recognition.onend = () => setAOuvir(false);
+    recognition.onstart = () => {
+      reconhecimentoVoz.current = recognition;
+      setAOuvir(true);
+    };
+
+    recognition.onend = () => {
+      reconhecimentoVoz.current = null;
+      setAOuvir(false);
+    };
+
     recognition.onerror = event => {
       console.error(event);
+      reconhecimentoVoz.current = null;
       setAOuvir(false);
       if (event.error !== "aborted") {
         alert("Não foi possível usar o microfone. Confirma a permissão do microfone no navegador.");
@@ -110,6 +122,21 @@ export default function Equipa({ onLogout }) {
     };
 
     recognition.start();
+  }
+
+  function pararDitado() {
+    const recognition = reconhecimentoVoz.current;
+    if (!recognition) {
+      setAOuvir(false);
+      return;
+    }
+    try {
+      recognition.stop();
+    } catch (error) {
+      console.error(error);
+      setAOuvir(false);
+      reconhecimentoVoz.current = null;
+    }
   }
 
   function juntarFotografiasSaida(event) {
@@ -214,14 +241,23 @@ export default function Equipa({ onLogout }) {
           <button style={styles.button} type="button" onClick={lerListaManual}>
             ✍️ Ler lista escrita
           </button>
-          <button
-            style={{ ...styles.button, ...styles.secondary }}
-            type="button"
-            onClick={ditarLista}
-            disabled={aOuvir}
-          >
-            {aOuvir ? "🎤 A ouvir…" : "🎤 Ditar lista"}
-          </button>
+          {!aOuvir ? (
+            <button
+              style={{ ...styles.button, ...styles.secondary }}
+              type="button"
+              onClick={iniciarDitado}
+            >
+              🎤 Começar a gravar
+            </button>
+          ) : (
+            <button
+              style={{ ...styles.button, ...styles.danger }}
+              type="button"
+              onClick={pararDitado}
+            >
+              ⏹️ Parar gravação
+            </button>
+          )}
           <label style={{ ...styles.button, ...styles.secondary, display: "inline-flex", alignItems: "center" }}>
             📷 Tirar/carregar fotografia
             <input type="file" accept="image/*" capture="environment" multiple onChange={juntarFotografiasSaida} style={{ display: "none" }} />
