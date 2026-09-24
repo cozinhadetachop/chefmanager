@@ -25,6 +25,7 @@ export default function Equipa({ onLogout }) {
   const [linhasImportadas, setLinhasImportadas] = useState([]);
   const [aLerFotografias, setALerFotografias] = useState(false);
   const [progressoFotografias, setProgressoFotografias] = useState(0);
+  const [aOuvir, setAOuvir] = useState(false);
 
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
@@ -68,6 +69,48 @@ export default function Equipa({ onLogout }) {
 
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
+
+  function ditarLista() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Este navegador não suporta ditado por voz. Tenta no Chrome ou Edge.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-PT";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setAOuvir(true);
+    recognition.onend = () => setAOuvir(false);
+    recognition.onerror = event => {
+      console.error(event);
+      setAOuvir(false);
+      if (event.error !== "aborted") {
+        alert("Não foi possível usar o microfone. Confirma a permissão do microfone no navegador.");
+      }
+    };
+
+    recognition.onresult = event => {
+      const frases = [];
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        if (event.results[i].isFinal) {
+          const texto = event.results[i][0]?.transcript?.trim();
+          if (texto) frases.push(texto);
+        }
+      }
+
+      if (frases.length) {
+        setListaManual(atual => {
+          const prefixo = atual.trim() ? atual.trimEnd() + "\n" : "";
+          return prefixo + frases.join("\n");
+        });
+      }
+    };
+
+    recognition.start();
+  }
 
   function juntarFotografiasSaida(event) {
     const novos = Array.from(event.target.files || []);
@@ -170,6 +213,14 @@ export default function Equipa({ onLogout }) {
         <div className="operacao-tools" style={{ marginTop: 8 }}>
           <button style={styles.button} type="button" onClick={lerListaManual}>
             ✍️ Ler lista escrita
+          </button>
+          <button
+            style={{ ...styles.button, ...styles.secondary }}
+            type="button"
+            onClick={ditarLista}
+            disabled={aOuvir}
+          >
+            {aOuvir ? "🎤 A ouvir…" : "🎤 Ditar lista"}
           </button>
           <label style={{ ...styles.button, ...styles.secondary, display: "inline-flex", alignItems: "center" }}>
             📷 Tirar/carregar fotografia
