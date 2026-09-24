@@ -35,6 +35,7 @@ export default function Equipa({ onLogout }) {
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
   const [procedenciasAbertas, setProcedenciasAbertas] = useState({}); // { "Makro": true, ... }
+  const [mostrarProdutos, setMostrarProdutos] = useState(false);
 
   /* ===== FETCH PRODUTOS ===== */
   useEffect(() => {
@@ -424,8 +425,28 @@ export default function Equipa({ onLogout }) {
       )}
 
       <div style={{ margin: "18px 0 10px" }}>
-        <h3 className="operacao-section-title">Adicionar produto individual</h3>
+        <button
+          type="button"
+          style={{ ...styles.button, ...styles.secondary, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+          onClick={() => {
+            setMostrarProdutos(valor => {
+              const novo = !valor;
+              if (!novo) {
+                setPesquisaProduto("");
+                fecharTudoProcedencias();
+              }
+              return novo;
+            });
+          }}
+          aria-expanded={mostrarProdutos}
+        >
+          <span>📦 Produtos</span>
+          <span>{mostrarProdutos ? "▲ Esconder" : "▼ Mostrar"}</span>
+        </button>
       </div>
+
+      {mostrarProdutos && (
+        <>
       {/* ✅ Pesquisa + abrir/fechar tudo (igual ao gerente) */}
       <div className="operacao-tools" style={styles.card}>
         <input
@@ -523,6 +544,10 @@ export default function Equipa({ onLogout }) {
           </div>
         );
       })}
+
+
+        </>
+      )}
 
       {/* ===== LISTA PROVISÓRIA ===== */}
       <div style={styles.card}><h3 className="operacao-section-title">📋 Lista provisória ({saidasProvisorias.length})</h3>
