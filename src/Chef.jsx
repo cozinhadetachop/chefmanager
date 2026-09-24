@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
+import SaidasRapidas from "./SaidasRapidas";
 
 const cores = {
   verde: "#536b45",
@@ -627,26 +628,29 @@ export default function Chef({ onLogout }) {
         {!aCarregar && !erro && area === "saida" && (
           <>
             <CabecalhoArea titulo="Registar saída" />
-            <section style={estilos.card}>
-              <AtalhosProdutos selecionar={nome => setSaidaManual(atual => ({ ...atual, produto: nome }))} />
-              <form style={estilos.formLinha} onSubmit={adicionarSaidaManual}>
-                <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto produtos={produtos} id="saida-produto" value={saidaManual.produto} onChange={e => setSaidaManual({ ...saidaManual, produto: e.target.value })} /></label>
-                <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={saidaManual.quantidade} onChange={e => setSaidaManual({ ...saidaManual, quantidade: e.target.value })} required /></label>
-                <button
-                  type="button"
-                  style={estilos.secundario}
-                  disabled={!saidaManual.produto}
-                  onClick={() => alternarFavorito(saidaManual.produto)}
-                >
-                  {favoritos.includes(saidaManual.produto) ? "⭐ Favorito" : "☆ Favorito"}
-                </button>
-                <button style={estilos.botao}>Adicionar</button>
-              </form>
-              {saidaManual.produto && <p style={estilos.subtitulo}>Stock disponível: {formatarNumero(produtos.find(p => p.nome === saidaManual.produto)?.stock_atual || 0)} {produtos.find(p => p.nome === saidaManual.produto)?.unidade}</p>}
-            </section>
-            <section style={estilos.card}><h3 style={{ marginTop: 0 }}>Lista provisória</h3><ListaProvisoria tipo="saida" linhas={saidas} remover={id => setSaidas(lista => lista.filter(item => item.id !== id))} confirmar={confirmarSaidas} /></section>
+            <SaidasRapidas
+              produtos={produtos}
+              storageKey="chef-saidas"
+              titulo="➖ Saídas de stock"
+              onConfirmar={async movimentos => {
+                const { error } = await supabase.rpc("chef_registar_saidas", {
+                  p_movimentos: movimentos.map(({ produto, quantidade }) => ({ produto, quantidade }))
+                });
+
+                if (error) {
+                  console.error(error);
+                  alert("Não foi possível registar as saídas.");
+                  return false;
+                }
+
+                await carregarStock();
+                alert("Saídas registadas com sucesso.");
+                return true;
+              }}
+            />
           </>
         )}
+
       </div>
     </div>
   );
