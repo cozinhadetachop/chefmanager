@@ -356,7 +356,7 @@ export default function Equipa({ onLogout }) {
     <div className="operacao" style={styles.app}>
       <header className="operacao-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
-          <img src="/logo-cozinha-de-tacho.webp" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto" }} />
+          <img src="/logo-cozinha-de-tacho.svg" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto" }} />
           <h2 style={{ margin: "8px 0 0" }}>Equipa · Registo de saídas</h2>
         </div>
         <button onClick={onLogout} style={{ ...styles.button, ...styles.danger }}>
