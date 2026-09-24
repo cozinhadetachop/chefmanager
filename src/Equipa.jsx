@@ -27,6 +27,8 @@ export default function Equipa({ onLogout }) {
   const [progressoFotografias, setProgressoFotografias] = useState(0);
   const [aOuvir, setAOuvir] = useState(false);
   const reconhecimentoVoz = useRef(null);
+  const ditadoAtivo = useRef(false);
+  const textoDitado = useRef("");
 
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
@@ -71,8 +73,21 @@ export default function Equipa({ onLogout }) {
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
 
+  async function transformarDitadoEmLista(texto) {
+    const conteudo = String(texto || "").trim();
+    if (!conteudo) return;
+
+    const { interpretarTextoSaidas } = await import("./invoiceOcr");
+    const linhas = interpretarTextoSaidas(conteudo, produtos, 0);
+    if (linhas.length) {
+      setLinhasImportadas(linhas);
+    } else {
+      alert("Ouvi o ditado, mas não consegui identificar produtos e quantidades. Revê o texto e corrige se necessário.");
+    }
+  }
+
   function iniciarDitado() {
-    if (aOuvir) return;
+    if (aOuvir || ditadoAtivo.current) return;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -80,62 +95,91 @@ export default function Equipa({ onLogout }) {
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "pt-PT";
-    recognition.continuous = true;
-    recognition.interimResults = false;
+    ditadoAtivo.current = true;
+    textoDitado.current = "";
+    setAOuvir(true);
 
-    recognition.onstart = () => {
+    const criarReconhecimento = () => {
+      if (!ditadoAtivo.current) return;
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = "pt-PT";
+      recognition.continuous = false;
+      recognition.interimResults = false;
       reconhecimentoVoz.current = recognition;
-      setAOuvir(true);
-    };
 
-    recognition.onend = () => {
-      reconhecimentoVoz.current = null;
-      setAOuvir(false);
-    };
-
-    recognition.onerror = event => {
-      console.error(event);
-      reconhecimentoVoz.current = null;
-      setAOuvir(false);
-      if (event.error !== "aborted") {
-        alert("Não foi possível usar o microfone. Confirma a permissão do microfone no navegador.");
-      }
-    };
-
-    recognition.onresult = event => {
-      const frases = [];
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        if (event.results[i].isFinal) {
-          const texto = event.results[i][0]?.transcript?.trim();
-          if (texto) frases.push(texto);
+      recognition.onresult = event => {
+        const frases = [];
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          if (event.results[i].isFinal) {
+            const texto = event.results[i][0]?.transcript?.trim();
+            if (texto) frases.push(texto);
+          }
         }
-      }
 
-      if (frases.length) {
-        setListaManual(atual => {
-          const prefixo = atual.trim() ? atual.trimEnd() + "\n" : "";
-          return prefixo + frases.join("\n");
-        });
+        if (frases.length) {
+          const novo = frases.join("\n");
+          textoDitado.current = textoDitado.current
+            ? textoDitado.current.trimEnd() + "\n" + novo
+            : novo;
+
+          setListaManual(atual => {
+            const prefixo = atual.trim() ? atual.trimEnd() + "\n" : "";
+            return prefixo + novo;
+          });
+        }
+      };
+
+      recognition.onerror = event => {
+        console.error(event);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          ditadoAtivo.current = false;
+          reconhecimentoVoz.current = null;
+          setAOuvir(false);
+          alert("O microfone não está autorizado. Permite o acesso ao microfone no navegador.");
+        }
+      };
+
+      recognition.onend = () => {
+        reconhecimentoVoz.current = null;
+        if (ditadoAtivo.current) {
+          window.setTimeout(criarReconhecimento, 180);
+        } else {
+          setAOuvir(false);
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (error) {
+        console.error(error);
+        ditadoAtivo.current = false;
+        reconhecimentoVoz.current = null;
+        setAOuvir(false);
       }
     };
 
-    recognition.start();
+    criarReconhecimento();
   }
 
   function pararDitado() {
+    ditadoAtivo.current = false;
+    setAOuvir(false);
+
     const recognition = reconhecimentoVoz.current;
-    if (!recognition) {
-      setAOuvir(false);
-      return;
+    reconhecimentoVoz.current = null;
+
+    if (recognition) {
+      try {
+        recognition.abort();
+      } catch (error) {
+        console.error(error);
+      }
     }
-    try {
-      recognition.stop();
-    } catch (error) {
-      console.error(error);
-      setAOuvir(false);
-      reconhecimentoVoz.current = null;
+
+    const conteudoDitado = textoDitado.current.trim();
+    if (conteudoDitado) {
+      window.setTimeout(() => transformarDitadoEmLista(conteudoDitado), 80);
     }
   }
 
@@ -226,8 +270,8 @@ export default function Equipa({ onLogout }) {
       <div style={styles.card}>
         <h3 className="operacao-section-title">⚡ Saída rápida por lista</h3>
         <p className="operacao-muted">
-          Escreve uma linha por produto, por exemplo: <strong>Arroz 2</strong> ou <strong>Batata; 5</strong>.
-          Em alternativa, tira uma fotografia a uma lista em papel.
+          Escreve uma linha por produto, tira uma fotografia ou usa o microfone. Ao ditar, diz por exemplo:
+          <strong> “Arroz dois, batata cinco, frango três”</strong>.
         </p>
 
         <textarea
@@ -247,7 +291,7 @@ export default function Equipa({ onLogout }) {
               type="button"
               onClick={iniciarDitado}
             >
-              🎤 Começar a gravar
+              🎤 Começar gravação
             </button>
           ) : (
             <button
@@ -255,7 +299,7 @@ export default function Equipa({ onLogout }) {
               type="button"
               onClick={pararDitado}
             >
-              ⏹️ Parar gravação
+              ⏹️ Parar e rever
             </button>
           )}
           <label style={{ ...styles.button, ...styles.secondary, display: "inline-flex", alignItems: "center" }}>
