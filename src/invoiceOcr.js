@@ -279,6 +279,77 @@ function separarItensFalados(texto) {
     .replace(/;\s*/g, "\n");
 }
 
+
+function escaparRegex(texto) {
+  return String(texto || "").replace(/[.*+?^$()|[\]\\{}]/g, "\\export function interpretarTextoSaidas(texto, produtos, foto = 0) {");
+}
+
+export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
+  const original = String(texto || "").trim();
+  const normal = normalizar(original);
+  if (!normal) return [];
+
+  const ocorrencias = [];
+  const nomes = produtos
+    .map(produto => ({ produto, nome: normalizar(produto.nome) }))
+    .filter(item => item.nome.length >= 2)
+    .sort((a, b) => b.nome.length - a.nome.length);
+
+  nomes.forEach(item => {
+    const regex = new RegExp("(?:^|\\s)" + escaparRegex(item.nome) + "(?=\\s|$)", "g");
+    let match;
+    while ((match = regex.exec(normal)) !== null) {
+      const inicio = match.index + (match[0].startsWith(" ") ? 1 : 0);
+      const fim = inicio + item.nome.length;
+      ocorrencias.push({ inicio, fim, produto: item.produto, nome: item.nome });
+    }
+  });
+
+  ocorrencias.sort((a, b) => a.inicio - b.inicio || (b.fim - b.inicio) - (a.fim - a.inicio));
+
+  const escolhidas = [];
+  for (const atual of ocorrencias) {
+    if (escolhidas.some(e => atual.inicio < e.fim && atual.fim > e.inicio)) continue;
+    escolhidas.push(atual);
+  }
+  escolhidas.sort((a, b) => a.inicio - b.inicio);
+
+  if (!escolhidas.length) return interpretarTextoSaidas(original, produtos, foto);
+
+  return escolhidas.map((ocorrencia, indice) => {
+    const proxima = escolhidas[indice + 1];
+    const fimTrecho = proxima ? proxima.inicio : normal.length;
+    const trecho = normal.slice(ocorrencia.fim, fimTrecho).trim();
+
+    let quantidade = "";
+    const numerico = trecho.match(/(?:^|\s)(\d+(?:[.,]\d{1,3})?)(?:\s|$)/);
+    if (numerico) {
+      const n = numero(numerico[1]);
+      if (n !== null && n > 0) quantidade = n;
+    }
+
+    if (quantidade === "") {
+      const palavras = trecho.split(/\s+/).filter(Boolean);
+      for (let tamanho = Math.min(5, palavras.length); tamanho >= 1; tamanho -= 1) {
+        const candidato = palavras.slice(0, tamanho).join(" ");
+        const n = numeroFaladoPt(candidato);
+        if (n !== null && n > 0) {
+          quantidade = n;
+          break;
+        }
+      }
+    }
+
+    return {
+      id: Date.now() + "-ditado-" + foto + "-" + indice + "-" + Math.random().toString(36).slice(2),
+      foto,
+      descricao: ocorrencia.produto.nome + (trecho ? " " + trecho : ""),
+      produto: ocorrencia.produto.nome,
+      quantidade
+    };
+  });
+}
+
 export function interpretarTextoSaidas(texto, produtos, foto = 0) {
   const linhas = separarItensFalados(texto)
     .split(/\r?\n/)
