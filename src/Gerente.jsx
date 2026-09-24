@@ -1553,12 +1553,13 @@ export default function Gerente({ onLogout }) {
 
             <table className="mobile-cards" style={styles.tableHist}>
               <colgroup>
-                <col style={{ width: "34%" }} />
+                <col style={{ width: "29%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "15%" }} />
                 <col style={{ width: "10%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "16%" }} />
               </colgroup>
               <thead>
                 <tr>
@@ -1568,6 +1569,7 @@ export default function Gerente({ onLogout }) {
                   <th style={styles.thHist}>Data</th>
                   <th style={styles.thHist}>Hora</th>
                   <th style={styles.thHist}>Responsável</th>
+                  <th style={styles.thHist}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -1581,12 +1583,32 @@ export default function Gerente({ onLogout }) {
                       <td data-label="Data" style={styles.tdHist}>{data}</td>
                       <td data-label="Hora" style={styles.tdHist}>{hora}</td>
                       <td data-label="Responsável" style={styles.tdHist}>{e.responsavel || "—"}</td>
+                      <td data-label="Ações" style={styles.tdHist}>
+                        <button
+                          type="button"
+                          style={{ ...styles.button, ...styles.danger, minHeight: 36, padding: "6px 10px" }}
+                          onClick={async () => {
+                            const confirmar = window.confirm(
+                              `Eliminar esta entrada?\n\n${e.produto || ""} · ${fmtNum(e.quantidade, 3)} ${getUnidadeByNome(e.produto)}\n${data} às ${hora}\n\nEsta ação vai alterar o stock.`
+                            );
+                            if (!confirmar) return;
+                            const { error } = await supabase.from("entradas").delete().eq("id", e.id);
+                            if (error) {
+                              mostrarErro("Não foi possível eliminar a entrada", error);
+                              return;
+                            }
+                            await fetchTudo();
+                          }}
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
                 {entradasFiltradas.length === 0 && (
                   <tr>
-                    <td data-label="" style={styles.tdHist} colSpan={6}>Sem entradas no intervalo.</td>
+                    <td data-label="" style={styles.tdHist} colSpan={7}>Sem entradas no intervalo.</td>
                   </tr>
                 )}
               </tbody>
@@ -1655,12 +1677,13 @@ export default function Gerente({ onLogout }) {
 
             <table className="mobile-cards" style={styles.tableHist}>
               <colgroup>
-                <col style={{ width: "34%" }} />
+                <col style={{ width: "29%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "15%" }} />
                 <col style={{ width: "10%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "16%" }} />
               </colgroup>
               <thead>
                 <tr>
@@ -1670,6 +1693,7 @@ export default function Gerente({ onLogout }) {
                   <th style={styles.thHist}>Data</th>
                   <th style={styles.thHist}>Hora</th>
                   <th style={styles.thHist}>Responsável</th>
+                  <th style={styles.thHist}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -1683,12 +1707,32 @@ export default function Gerente({ onLogout }) {
                       <td data-label="Data" style={styles.tdHist}>{data}</td>
                       <td data-label="Hora" style={styles.tdHist}>{hora}</td>
                       <td data-label="Responsável" style={styles.tdHist}>{s.responsavel || "—"}</td>
+                      <td data-label="Ações" style={styles.tdHist}>
+                        <button
+                          type="button"
+                          style={{ ...styles.button, ...styles.danger, minHeight: 36, padding: "6px 10px" }}
+                          onClick={async () => {
+                            const confirmar = window.confirm(
+                              `Eliminar esta saída?\n\n${s.produto || ""} · ${fmtNum(s.quantidade, 3)} ${getUnidadeByNome(s.produto)}\n${data} às ${hora}\n\nEsta ação vai alterar o stock.`
+                            );
+                            if (!confirmar) return;
+                            const { error } = await supabase.from("saidas").delete().eq("id", s.id);
+                            if (error) {
+                              mostrarErro("Não foi possível eliminar a saída", error);
+                              return;
+                            }
+                            await fetchTudo();
+                          }}
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
                 {saidasFiltradas.length === 0 && (
                   <tr>
-                    <td data-label="" style={styles.tdHist} colSpan={6}>Sem saídas no intervalo.</td>
+                    <td data-label="" style={styles.tdHist} colSpan={7}>Sem saídas no intervalo.</td>
                   </tr>
                 )}
               </tbody>
