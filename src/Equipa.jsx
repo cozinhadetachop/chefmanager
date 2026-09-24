@@ -20,6 +20,11 @@ export default function Equipa({ onLogout }) {
   const [responsavel, setResponsavel] = useState("");
   const [aGuardar, setAGuardar] = useState(false);
   const [erroSaida, setErroSaida] = useState("");
+  const [listaManual, setListaManual] = useState("");
+  const [fotografiasSaida, setFotografiasSaida] = useState([]);
+  const [linhasImportadas, setLinhasImportadas] = useState([]);
+  const [aLerFotografias, setALerFotografias] = useState(false);
+  const [progressoFotografias, setProgressoFotografias] = useState(0);
 
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
@@ -63,6 +68,77 @@ export default function Equipa({ onLogout }) {
 
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
+
+  function juntarFotografiasSaida(event) {
+    const novos = Array.from(event.target.files || []);
+    if (!novos.length) return;
+    setFotografiasSaida(atual => [...atual, ...novos]);
+    event.target.value = "";
+  }
+
+  async function lerListaManual() {
+    if (!listaManual.trim()) {
+      alert("Escreve ou cola primeiro a lista de produtos e quantidades.");
+      return;
+    }
+    const { interpretarTextoSaidas } = await import("./invoiceOcr");
+    const linhas = interpretarTextoSaidas(listaManual, produtos, 0);
+    if (!linhas.length) {
+      alert("Não consegui reconhecer produtos nessa lista. Usa uma linha por produto, por exemplo: Arroz 2");
+      return;
+    }
+    setLinhasImportadas(linhas);
+  }
+
+  async function lerFotografiasSaida() {
+    if (!fotografiasSaida.length) return;
+    setALerFotografias(true);
+    setProgressoFotografias(0);
+    try {
+      const { lerFotografiasSaidas } = await import("./invoiceOcr");
+      const linhas = await lerFotografiasSaidas(fotografiasSaida, produtos, setProgressoFotografias);
+      if (!linhas.length) {
+        alert("Não consegui reconhecer produtos na fotografia. Tenta com a folha mais direita, bem iluminada e com letra legível.");
+        return;
+      }
+      setLinhasImportadas(linhas);
+    } catch (error) {
+      console.error(error);
+      alert("Não foi possível ler a fotografia.");
+    } finally {
+      setALerFotografias(false);
+    }
+  }
+
+  function atualizarLinhaImportada(id, campo, valor) {
+    setLinhasImportadas(linhas => linhas.map(linha => linha.id === id ? { ...linha, [campo]: valor } : linha));
+  }
+
+  function adicionarLinhasImportadas() {
+    const invalidas = linhasImportadas.filter(linha => !linha.produto || !Number(linha.quantidade) || Number(linha.quantidade) <= 0);
+    if (invalidas.length) {
+      alert("Confirma o produto e a quantidade de todas as linhas antes de adicionar.");
+      return;
+    }
+
+    const novas = linhasImportadas.map(linha => {
+      const produto = produtos.find(p => p.nome === linha.produto);
+      return {
+        produto: linha.produto,
+        quantidade: Number(linha.quantidade),
+        unidade: produto?.unidade || "",
+        setor: "Cozinha",
+        dataHora: new Date().toISOString()
+      };
+    });
+
+    setSaidasProvisorias(atual => [...atual, ...novas]);
+    setLinhasImportadas([]);
+    setListaManual("");
+    setFotografiasSaida([]);
+    setProgressoFotografias(0);
+  }
+
   return (
     <div className="operacao" style={styles.app}>
       <header className="operacao-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
@@ -75,7 +151,93 @@ export default function Equipa({ onLogout }) {
         </button>
       </header>
 
-      <p className="operacao-muted">1. Escolhe os produtos · 2. Revê a lista · 3. Confirma as saídas.</p>
+      <p className="operacao-muted">1. Faz a lista · 2. Revê o que foi lido · 3. Confirma as saídas.</p>
+
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">⚡ Saída rápida por lista</h3>
+        <p className="operacao-muted">
+          Escreve uma linha por produto, por exemplo: <strong>Arroz 2</strong> ou <strong>Batata; 5</strong>.
+          Em alternativa, tira uma fotografia a uma lista em papel.
+        </p>
+
+        <textarea
+          style={{ ...styles.input, width: "100%", minHeight: 110, boxSizing: "border-box", resize: "vertical" }}
+          placeholder={"Arroz 2\nBatata 5\nFrango 3"}
+          value={listaManual}
+          onChange={e => setListaManual(e.target.value)}
+        />
+
+        <div className="operacao-tools" style={{ marginTop: 8 }}>
+          <button style={styles.button} type="button" onClick={lerListaManual}>
+            ✍️ Ler lista escrita
+          </button>
+          <label style={{ ...styles.button, ...styles.secondary, display: "inline-flex", alignItems: "center" }}>
+            📷 Tirar/carregar fotografia
+            <input type="file" accept="image/*" capture="environment" multiple onChange={juntarFotografiasSaida} style={{ display: "none" }} />
+          </label>
+        </div>
+
+        {fotografiasSaida.map((foto, indice) => (
+          <div key={`${foto.name}-${indice}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0" }}>
+            <span>Foto {indice + 1}: {foto.name}</span>
+            <button type="button" style={{ ...styles.button, ...styles.secondary }} onClick={() => setFotografiasSaida(lista => lista.filter((_, i) => i !== indice))}>
+              Retirar
+            </button>
+          </div>
+        ))}
+
+        {!!fotografiasSaida.length && (
+          <button style={{ ...styles.button, marginTop: 8 }} type="button" disabled={aLerFotografias} onClick={lerFotografiasSaida}>
+            {aLerFotografias ? `A ler… ${Math.round(progressoFotografias * 100)}%` : `Ler ${fotografiasSaida.length} fotografia(s)`}
+          </button>
+        )}
+        {aLerFotografias && <progress style={{ width: "100%", marginTop: 8 }} max="1" value={progressoFotografias} />}
+      </div>
+
+      {!!linhasImportadas.length && (
+        <div style={styles.card}>
+          <h3 className="operacao-section-title">👀 Rever lista reconhecida</h3>
+          <p className="operacao-muted">Corrige qualquer produto ou quantidade antes de adicionar às saídas.</p>
+
+          {linhasImportadas.map(linha => (
+            <div key={linha.id} className="operacao-form" style={{ padding: "10px 0", borderBottom: "1px solid #e7eae3" }}>
+              <select
+                style={styles.input}
+                value={linha.produto || ""}
+                onChange={e => atualizarLinhaImportada(linha.id, "produto", e.target.value)}
+              >
+                <option value="">Selecionar produto…</option>
+                {produtos.map(p => <option key={p.nome} value={p.nome}>{p.nome} ({p.unidade})</option>)}
+              </select>
+
+              <input
+                style={styles.input}
+                type="number"
+                inputMode="decimal"
+                min="0.001"
+                step="0.001"
+                placeholder="Quantidade"
+                value={linha.quantidade}
+                onChange={e => atualizarLinhaImportada(linha.id, "quantidade", e.target.value)}
+              />
+
+              <button type="button" style={{ ...styles.button, ...styles.danger }} onClick={() => setLinhasImportadas(lista => lista.filter(item => item.id !== linha.id))}>
+                Remover
+              </button>
+
+              {linha.descricao && <small style={{ flexBasis: "100%", color: "#667064" }}>Lido: {linha.descricao}</small>}
+            </div>
+          ))}
+
+          <button style={{ ...styles.button, width: "100%", marginTop: 12 }} type="button" onClick={adicionarLinhasImportadas}>
+            ➕ Adicionar esta lista às saídas
+          </button>
+        </div>
+      )}
+
+      <div style={{ margin: "18px 0 10px" }}>
+        <h3 className="operacao-section-title">Adicionar produto individual</h3>
+      </div>
       {/* ✅ Pesquisa + abrir/fechar tudo (igual ao gerente) */}
       <div className="operacao-tools" style={styles.card}>
         <input
