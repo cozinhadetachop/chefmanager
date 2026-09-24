@@ -177,14 +177,6 @@ export default function Chef({ onLogout }) {
       return;
     }
 
-    const jaAdicionado = saidas
-      .filter(item => item.produto === produto.nome)
-      .reduce((total, item) => total + Number(item.quantidade), 0);
-    if (jaAdicionado + quantidade > Number(produto.stock_atual || 0)) {
-      alert("Quantidade superior ao stock disponível. Informe o gerente.");
-      return;
-    }
-
     setSaidas(lista => [...lista, { id: idLinha(), produto: produto.nome, quantidade }]);
     setSaidaManual({ produto: "", quantidade: "" });
   }
@@ -208,15 +200,6 @@ export default function Chef({ onLogout }) {
 
   async function confirmarSaidas() {
     if (!saidas.length) return;
-    const ultrapassaStock = saidas.some(item => {
-      const produto = produtos.find(p => p.nome === item.produto);
-      const total = saidas.filter(s => s.produto === item.produto).reduce((soma, s) => soma + Number(s.quantidade), 0);
-      return !produto || total > Number(produto.stock_atual || 0);
-    });
-    if (ultrapassaStock) {
-      alert("Quantidade superior ao stock disponível. Informe o gerente.");
-      return;
-    }
     if (!window.confirm(`Confirmar ${saidas.length} saída(s) de stock?`)) return;
     setAGuardar(true);
     const movimentos = saidas.map(item => ({ produto: item.produto, quantidade: Number(item.quantidade) }));
@@ -224,9 +207,7 @@ export default function Chef({ onLogout }) {
     setAGuardar(false);
     if (error) {
       console.error(error);
-      alert(error.message?.includes("STOCK_INSUFICIENTE")
-        ? "Quantidade superior ao stock disponível. Informe o gerente."
-        : "Não foi possível registar as saídas.");
+      alert("Não foi possível registar as saídas.");
       return;
     }
     setSaidas([]);
