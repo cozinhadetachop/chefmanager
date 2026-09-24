@@ -29,6 +29,8 @@ export default function Equipa({ onLogout }) {
   const reconhecimentoVoz = useRef(null);
   const ditadoAtivo = useRef(false);
   const textoDitado = useRef("");
+  const hipoteseDitado = useRef("");
+  const ditadoAProcessar = useRef(false);
 
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
@@ -75,15 +77,44 @@ export default function Equipa({ onLogout }) {
 
   async function transformarDitadoEmLista(texto) {
     const conteudo = String(texto || "").trim();
-    if (!conteudo) return;
-
-    const { interpretarTextoSaidas } = await import("./invoiceOcr");
-    const linhas = interpretarTextoSaidas(conteudo, produtos, 0);
-    if (linhas.length) {
-      setLinhasImportadas(linhas);
-    } else {
-      alert("Ouvi o ditado, mas não consegui identificar produtos e quantidades. Revê o texto e corrige se necessário.");
+    if (!conteudo) {
+      alert("Não foi possível captar o ditado. Tenta novamente e fala um pouco mais perto do tablet.");
+      return;
     }
+
+    const { interpretarDitadoSaidas } = await import("./invoiceOcr");
+    const linhas = interpretarDitadoSaidas(conteudo, produtos, 0);
+
+    if (!linhas.length) {
+      alert("Ouvi o ditado, mas não consegui identificar produtos. Revê o texto e tenta novamente.");
+      return;
+    }
+
+    setLinhasImportadas(linhas);
+  }
+
+  function finalizarDitado() {
+    if (ditadoAProcessar.current) return;
+    ditadoAProcessar.current = true;
+
+    const final = textoDitado.current.trim();
+    const parcial = hipoteseDitado.current.trim();
+    if (parcial && final && !final.endsWith(parcial)) {
+      textoDitado.current = final + " " + parcial;
+    } else if (!final && parcial) {
+      textoDitado.current = parcial;
+    }
+
+    const definitivo = textoDitado.current.trim();
+    hipoteseDitado.current = "";
+
+    window.setTimeout(async () => {
+      try {
+        await transformarDitadoEmLista(definitivo);
+      } finally {
+        ditadoAProcessar.current = false;
+      }
+    }, 120);
   }
 
   function iniciarDitado() {
@@ -96,7 +127,11 @@ export default function Equipa({ onLogout }) {
     }
 
     ditadoAtivo.current = true;
+    ditadoAProcessar.current = false;
     textoDitado.current = "";
+    hipoteseDitado.current = "";
+    setListaManual("");
+    setLinhasImportadas([]);
     setAOuvir(true);
 
     const criarReconhecimento = () => {
@@ -105,28 +140,31 @@ export default function Equipa({ onLogout }) {
       const recognition = new SpeechRecognition();
       recognition.lang = "pt-PT";
       recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       reconhecimentoVoz.current = recognition;
 
       recognition.onresult = event => {
-        const frases = [];
+        const finais = [];
+        let parcial = "";
+
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          if (event.results[i].isFinal) {
-            const texto = event.results[i][0]?.transcript?.trim();
-            if (texto) frases.push(texto);
-          }
+          const texto = event.results[i][0]?.transcript?.trim();
+          if (!texto) continue;
+          if (event.results[i].isFinal) finais.push(texto);
+          else parcial = texto;
         }
 
-        if (frases.length) {
-          const novo = frases.join("\n");
-          textoDitado.current = textoDitado.current
-            ? textoDitado.current.trimEnd() + "\n" + novo
-            : novo;
+        hipoteseDitado.current = parcial;
 
-          setListaManual(atual => {
-            const prefixo = atual.trim() ? atual.trimEnd() + "\n" : "";
-            return prefixo + novo;
-          });
+        if (finais.length) {
+          const novo = finais.join(" ");
+          textoDitado.current = textoDitado.current
+            ? textoDitado.current.trimEnd() + " " + novo
+            : novo;
+          hipoteseDitado.current = "";
+          setListaManual(textoDitado.current);
+        } else if (parcial) {
+          setListaManual(textoDitado.current ? textoDitado.current.trimEnd() + " " + parcial : parcial);
         }
       };
 
@@ -143,10 +181,11 @@ export default function Equipa({ onLogout }) {
       recognition.onend = () => {
         reconhecimentoVoz.current = null;
         if (ditadoAtivo.current) {
-          window.setTimeout(criarReconhecimento, 180);
-        } else {
-          setAOuvir(false);
+          window.setTimeout(criarReconhecimento, 160);
+          return;
         }
+        setAOuvir(false);
+        finalizarDitado();
       };
 
       try {
@@ -156,6 +195,7 @@ export default function Equipa({ onLogout }) {
         ditadoAtivo.current = false;
         reconhecimentoVoz.current = null;
         setAOuvir(false);
+        finalizarDitado();
       }
     };
 
@@ -163,26 +203,25 @@ export default function Equipa({ onLogout }) {
   }
 
   function pararDitado() {
+    if (!ditadoAtivo.current && !aOuvir) return;
+
     ditadoAtivo.current = false;
     setAOuvir(false);
 
     const recognition = reconhecimentoVoz.current;
-    reconhecimentoVoz.current = null;
-
-    if (recognition) {
-      try {
-        recognition.abort();
-      } catch (error) {
-        console.error(error);
-      }
+    if (!recognition) {
+      finalizarDitado();
+      return;
     }
 
-    const conteudoDitado = textoDitado.current.trim();
-    if (conteudoDitado) {
-      window.setTimeout(() => transformarDitadoEmLista(conteudoDitado), 80);
+    try {
+      recognition.stop();
+    } catch (error) {
+      console.error(error);
+      reconhecimentoVoz.current = null;
+      finalizarDitado();
     }
   }
-
   function juntarFotografiasSaida(event) {
     const novos = Array.from(event.target.files || []);
     if (!novos.length) return;
@@ -271,7 +310,7 @@ export default function Equipa({ onLogout }) {
         <h3 className="operacao-section-title">⚡ Saída rápida por lista</h3>
         <p className="operacao-muted">
           Escreve uma linha por produto, tira uma fotografia ou usa o microfone. Ao ditar, diz por exemplo:
-          <strong> “Arroz dois, batata cinco, frango três”</strong>.
+          <strong> “Arroz dois, batata cinco, frango três”</strong>. Ao parar, aparece automaticamente a lista para revisão.
         </p>
 
         <textarea
