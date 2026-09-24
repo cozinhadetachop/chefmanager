@@ -19,39 +19,41 @@ const estilos = {
     placeItems: "center",
     padding: 20,
     boxSizing: "border-box",
-    fontFamily: "Arial, sans-serif",
+    fontFamily: 'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     color: "#252b23",
-    background: cores.creme
+    background: "radial-gradient(circle at top right, rgba(116,145,94,.14), transparent 28rem), linear-gradient(180deg, #f8f9f6 0%, #f1f4ef 100%)"
   },
   caixa: {
     width: "100%",
-    maxWidth: 520,
-    padding: 24,
+    maxWidth: 540,
+    padding: 28,
     boxSizing: "border-box",
     border: `1px solid ${cores.borda}`,
-    borderRadius: 18,
-    background: "white",
-    boxShadow: "0 12px 36px rgba(52,69,45,.10)"
+    borderRadius: 24,
+    background: "rgba(255,255,255,.96)",
+    boxShadow: "0 24px 60px rgba(52,69,45,.13)"
   },
-  logo: { display: "block", width: "100%", maxWidth: 340, height: "auto", margin: "0 auto 14px" },
-  perfis: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, margin: "20px 0" },
+  logo: { display: "block", width: "100%", maxWidth: 320, height: "auto", margin: "0 auto 18px" },
+  perfis: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, margin: "22px 0" },
   perfil: {
-    minHeight: 92,
-    padding: 10,
-    border: `1px solid ${cores.borda}`,
-    borderRadius: 12,
+    minHeight: 98,
+    padding: 12,
+    border: "1px solid #dfe5da",
+    borderRadius: 16,
     background: "white",
+    color: "#34452d",
     cursor: "pointer",
-    fontWeight: 700
+    fontWeight: 750,
+    boxShadow: "0 4px 14px rgba(49,67,42,.05)"
   },
-  perfilAtivo: { color: "white", background: cores.verde, borderColor: cores.verde },
+  perfilAtivo: { color: "white", background: "linear-gradient(135deg, #5d774d, #445d39)", borderColor: cores.verde, boxShadow: "0 10px 22px rgba(73,99,61,.20)" },
   input: {
     width: "100%",
     minHeight: 52,
     padding: "10px 14px",
     boxSizing: "border-box",
     border: `1px solid ${cores.borda}`,
-    borderRadius: 10,
+    borderRadius: 13,
     textAlign: "center",
     fontSize: 24,
     letterSpacing: 8
@@ -61,12 +63,12 @@ const estilos = {
     minHeight: 50,
     marginTop: 12,
     border: 0,
-    borderRadius: 10,
-    background: cores.verde,
+    borderRadius: 13,
+    background: "linear-gradient(135deg, #5d774d, #49633d)",
     color: "white",
     cursor: "pointer",
     fontSize: 16,
-    fontWeight: 700
+    fontWeight: 750
   }
 };
 
