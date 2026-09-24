@@ -444,63 +444,6 @@ export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
   return interpretarTextoSaidas(original, produtos, foto);
 }
 
-export function interpretarTextoSaidas(texto, produtos, foto = 0) {");
-}
-
-export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
-  const original = String(texto || "").trim();
-  const normal = normalizar(original);
-  if (!normal) return [];
-
-  const palavras = normal.split(/\s+/).filter(Boolean);
-  const itens = [];
-  let inicioDescricao = 0;
-  let i = 0;
-
-  while (i < palavras.length) {
-    let quantidade = null;
-    let tamanhoNumero = 0;
-
-    const numerico = numero(palavras[i]);
-    if (numerico !== null && numerico > 0) {
-      quantidade = numerico;
-      tamanhoNumero = 1;
-    } else {
-      for (let tamanho = Math.min(5, palavras.length - i); tamanho >= 1; tamanho -= 1) {
-        const candidato = palavras.slice(i, i + tamanho).join(" ");
-        const n = numeroFaladoPt(candidato);
-        if (n !== null && n > 0) {
-          quantidade = n;
-          tamanhoNumero = tamanho;
-          break;
-        }
-      }
-    }
-
-    if (quantidade !== null) {
-      const descricao = palavras.slice(inicioDescricao, i).join(" ").trim();
-      if (descricao) {
-        const produto = encontrarProduto(descricao, produtos);
-        itens.push({
-          id: Date.now() + "-ditado-" + foto + "-" + itens.length + "-" + Math.random().toString(36).slice(2),
-          foto,
-          descricao: descricao + " " + palavras.slice(i, i + tamanhoNumero).join(" "),
-          produto: produto?.nome || "",
-          quantidade
-        });
-      }
-
-      i += tamanhoNumero;
-      inicioDescricao = i;
-      continue;
-    }
-
-    i += 1;
-  }
-
-  if (itens.length) return itens;
-  return interpretarTextoSaidas(original, produtos, foto);
-}
 export function interpretarTextoSaidas(texto, produtos, foto = 0) {
   const linhas = separarItensFalados(texto)
     .split(/\r?\n/)
