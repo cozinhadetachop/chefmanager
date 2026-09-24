@@ -280,8 +280,171 @@ function separarItensFalados(texto) {
 }
 
 
-function escaparRegex(texto) {
-  return String(texto || "").replace(/[.*+?^$()|[\]\\{}]/g, "\\export function interpretarTextoSaidas(texto, produtos, foto = 0) {");
+
+function singularizarPalavra(palavra) {
+  const p = normalizar(palavra);
+  if (p.length <= 3) return p;
+  if (p.endsWith("oes")) return p.slice(0, -3) + "ao";
+  if (p.endsWith("ais")) return p.slice(0, -3) + "al";
+  if (p.endsWith("eis")) return p.slice(0, -3) + "el";
+  if (p.endsWith("res") && p.length > 5) return p.slice(0, -2);
+  if (p.endsWith("s") && !p.endsWith("ss")) return p.slice(0, -1);
+  return p;
+}
+
+function tokensProduto(texto) {
+  const ignorar = new Set([
+    "de", "da", "do", "das", "dos", "com", "sem", "para",
+    "kg", "g", "gr", "l", "lt", "ml", "cl", "un", "uni", "unid",
+    "cx", "pct", "pack", "tam"
+  ]);
+
+  return normalizar(texto)
+    .split(/\s+/)
+    .map(singularizarPalavra)
+    .filter(token => token && token.length >= 2 && !ignorar.has(token) && !/^\d/.test(token));
+}
+
+function distanciaLevenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const anterior = Array.from({ length: b.length + 1 }, (_, i) => i);
+  const atual = new Array(b.length + 1);
+
+  for (let i = 1; i <= a.length; i += 1) {
+    atual[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const custo = a[i - 1] === b[j - 1] ? 0 : 1;
+      atual[j] = Math.min(
+        atual[j - 1] + 1,
+        anterior[j] + 1,
+        anterior[j - 1] + custo
+      );
+    }
+    for (let j = 0; j <= b.length; j += 1) anterior[j] = atual[j];
+  }
+
+  return anterior[b.length];
+}
+
+function semelhancaPalavra(a, b) {
+  if (a === b) return 1;
+  if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return 0.9;
+  const maior = Math.max(a.length, b.length);
+  if (!maior) return 0;
+  return 1 - distanciaLevenshtein(a, b) / maior;
+}
+
+function candidatosProdutoFalado(descricao, produtos) {
+  const descricaoTokens = tokensProduto(descricao);
+  if (!descricaoTokens.length) return [];
+
+  return produtos
+    .map(produto => {
+      const produtoTokens = tokensProduto(produto.nome);
+      if (!produtoTokens.length) return { produto, score: 0 };
+
+      const scoresDescricao = descricaoTokens.map(tokenDescricao =>
+        Math.max(...produtoTokens.map(tokenProduto => semelhancaPalavra(tokenDescricao, tokenProduto)))
+      );
+
+      const coberturaDescricao = scoresDescricao.reduce((a, b) => a + b, 0) / scoresDescricao.length;
+      const exatos = descricaoTokens.filter(td => produtoTokens.includes(td)).length;
+      const coberturaExata = exatos / descricaoTokens.length;
+
+      const nomeBase = produtoTokens.join(" ");
+      const descBase = descricaoTokens.join(" ");
+      let bonus = 0;
+      if (nomeBase === descBase) bonus += 0.45;
+      else if (nomeBase.includes(descBase) || descBase.includes(nomeBase)) bonus += 0.18;
+
+      const score = Math.min(1, coberturaDescricao * 0.65 + coberturaExata * 0.35 + bonus);
+      return { produto, score };
+    })
+    .filter(item => item.score >= 0.42)
+    .sort((a, b) => b.score - a.score || String(a.produto.nome).localeCompare(String(b.produto.nome), "pt-PT"));
+}
+
+function associarProdutoFalado(descricao, produtos) {
+  const candidatos = candidatosProdutoFalado(descricao, produtos);
+  if (!candidatos.length) return { produto: null, sugestoes: [] };
+
+  const primeiro = candidatos[0];
+  const segundo = candidatos[1];
+  const vantagem = segundo ? primeiro.score - segundo.score : primeiro.score;
+
+  const seguro =
+    primeiro.score >= 0.9 ||
+    (primeiro.score >= 0.68 && (!segundo || vantagem >= 0.12)) ||
+    (!segundo && primeiro.score >= 0.55);
+
+  return {
+    produto: seguro ? primeiro.produto : null,
+    sugestoes: candidatos.slice(0, 3).map(item => item.produto.nome)
+  };
+}
+
+export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
+  const original = String(texto || "").trim();
+  const normal = normalizar(original);
+  if (!normal) return [];
+
+  const palavras = normal.split(/\s+/).filter(Boolean);
+  const itens = [];
+  let inicioDescricao = 0;
+  let i = 0;
+
+  while (i < palavras.length) {
+    let quantidade = null;
+    let tamanhoNumero = 0;
+
+    const numerico = numero(palavras[i]);
+    if (numerico !== null && numerico > 0) {
+      quantidade = numerico;
+      tamanhoNumero = 1;
+    } else {
+      for (let tamanho = Math.min(5, palavras.length - i); tamanho >= 1; tamanho -= 1) {
+        const candidato = palavras.slice(i, i + tamanho).join(" ");
+        const n = numeroFaladoPt(candidato);
+        if (n !== null && n > 0) {
+          quantidade = n;
+          tamanhoNumero = tamanho;
+          break;
+        }
+      }
+    }
+
+    if (quantidade !== null) {
+      const descricao = palavras.slice(inicioDescricao, i).join(" ").trim();
+
+      if (descricao) {
+        const associacao = associarProdutoFalado(descricao, produtos);
+
+        itens.push({
+          id: Date.now() + "-ditado-" + foto + "-" + itens.length + "-" + Math.random().toString(36).slice(2),
+          foto,
+          descricao: descricao + " " + palavras.slice(i, i + tamanhoNumero).join(" "),
+          produto: associacao.produto?.nome || "",
+          quantidade,
+          sugestoes: associacao.sugestoes
+        });
+      }
+
+      i += tamanhoNumero;
+      inicioDescricao = i;
+      continue;
+    }
+
+    i += 1;
+  }
+
+  if (itens.length) return itens;
+  return interpretarTextoSaidas(original, produtos, foto);
+}
+
+export function interpretarTextoSaidas(texto, produtos, foto = 0) {");
 }
 
 export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
