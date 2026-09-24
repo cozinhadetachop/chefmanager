@@ -177,7 +177,9 @@ export default function Gerente({ onLogout }) {
 
   /* ✅ ORGANIZAÇÃO PRODUTOS (COLAPSÁVEL + PESQUISA) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
-  const [procedenciasAbertas, setProcedenciasAbertas] = useState({}); // { "Makro": true, ... }
+  const [procedenciasAbertas, setProcedenciasAbertas] = useState({});
+  const [codigosFornecedor, setCodigosFornecedor] = useState({});
+  const [codigosEdicao, setCodigosEdicao] = useState({});
 
   const produtosEntradaFiltrados = useMemo(() => {
     const termo = pesquisaEntrada.trim().toLocaleLowerCase("pt-PT");
@@ -304,6 +306,47 @@ export default function Gerente({ onLogout }) {
     }
   }
 
+  function chaveCodigo(produtoId, fornecedor) {
+    return `${produtoId}::${String(fornecedor || "").trim()}`;
+  }
+
+  async function guardarCodigoArtigo(produto) {
+    const fornecedor = String(produto.procedencia || "").trim();
+    if (!produto.id || !fornecedor) return;
+    const chave = chaveCodigo(produto.id, fornecedor);
+    const valor = String(codigosEdicao[chave] ?? "").trim();
+    const atual = String(codigosFornecedor[chave] ?? "").trim();
+    if (valor === atual) return;
+
+    if (!valor) {
+      const { error } = await supabase.from("produto_fornecedor_codigos")
+        .delete().eq("produto_id", produto.id).eq("fornecedor", fornecedor);
+      if (error) {
+        mostrarErro("Não foi possível remover o código do artigo", error);
+        setCodigosEdicao(prev => ({ ...prev, [chave]: atual }));
+        return;
+      }
+      setCodigosFornecedor(prev => {
+        const proximo = { ...prev };
+        delete proximo[chave];
+        return proximo;
+      });
+      return;
+    }
+
+    const { error } = await supabase.from("produto_fornecedor_codigos").upsert(
+      { produto_id: produto.id, fornecedor, codigo_artigo: valor, atualizado_em: new Date().toISOString() },
+      { onConflict: "produto_id,fornecedor" }
+    );
+
+    if (error) {
+      mostrarErro("Não foi possível guardar o código do artigo", error);
+      setCodigosEdicao(prev => ({ ...prev, [chave]: atual }));
+      return;
+    }
+    setCodigosFornecedor(prev => ({ ...prev, [chave]: valor }));
+  }
+
   async function fetchTudo() {
     setErroStock("");
     // O Gerente e o Chef recebem as mesmas quantidades calculadas no Supabase.
@@ -318,11 +361,14 @@ export default function Gerente({ onLogout }) {
     const { data: e, error: erroEntradas } = await supabase.from("entradas").select("*").order("datahora", { ascending: false });
     const { data: s, error: erroSaidas } = await supabase.from("saidas").select("*").order("dataHora", { ascending: false });
     const { data: r, error: erroInventario } = await supabase.from("inventario_real").select("*");
+    const { data: codigos, error: erroCodigos } = await supabase
+      .from("produto_fornecedor_codigos")
+      .select("produto_id,fornecedor,codigo_artigo");
     const { data: ajustes, error: erroAjustes } = await supabase.from("inventario_ajustes")
       .select("id,produto,quantidade_anterior,quantidade_nova,tipo,mes_referencia,motivo,autor_email,criado_em")
       .order("criado_em", { ascending: false }).order("id", { ascending: false }).limit(100);
-    if (erroProdutos || erroEntradas || erroSaidas || erroInventario || erroAjustes) {
-      console.error(erroProdutos || erroEntradas || erroSaidas || erroInventario || erroAjustes);
+    if (erroProdutos || erroEntradas || erroSaidas || erroInventario || erroAjustes || erroCodigos) {
+      console.error(erroProdutos || erroEntradas || erroSaidas || erroInventario || erroAjustes || erroCodigos);
       setErroStock("Não foi possível carregar os dados do stock. Tenta novamente.");
       return;
     }
@@ -331,6 +377,14 @@ export default function Gerente({ onLogout }) {
     const produtosNorm = (p || []).map((x) => ({ ...x, unidade: normalizeUnidade(x.unidade) }));
 
     setProdutos(produtosNorm);
+
+    const mapaCodigos = {};
+    (codigos || []).forEach(item => {
+      mapaCodigos[chaveCodigo(item.produto_id, item.fornecedor)] = item.codigo_artigo || "";
+    });
+    setCodigosFornecedor(mapaCodigos);
+    setCodigosEdicao(mapaCodigos);
+
     setEntradas(e || []);
     setSaidas(s || []);
     setSaidasAtualizadasEm(new Date());
@@ -1246,7 +1300,7 @@ export default function Gerente({ onLogout }) {
       <div className="operacao-tools">
         <input
           style={styles.input}
-          placeholder="Pesquisar produto…"
+          placeholder="Pesquisar produto ou código…"
           value={pesquisaProduto}
           onChange={e => setPesquisaProduto(e.target.value)}
         />
@@ -1261,7 +1315,10 @@ export default function Gerente({ onLogout }) {
       {procedenciasOrdenadas.map(proc => {
         const listaTotal = produtosPorProcedencia[proc] || [];
         const listaFiltrada = pesquisa
-          ? listaTotal.filter(p => (p.nome || "").toLowerCase().includes(pesquisa))
+          ? listaTotal.filter(p => {
+              const codigo = codigosFornecedor[chaveCodigo(p.id, p.procedencia)] || "";
+              return `${p.nome || ""} ${codigo}`.toLowerCase().includes(pesquisa);
+            })
           : listaTotal;
 
         if (pesquisa && listaFiltrada.length === 0) return null;
@@ -1283,20 +1340,22 @@ export default function Gerente({ onLogout }) {
               <div className="operacao-table-scroll" style={{ marginTop: 8 }}>
                 <table className="mobile-cards products-table" style={styles.tableProdutos}>
                   <colgroup>
-                    <col style={{ width: "26%" }} />
-                    <col style={{ width: "8%" }} />
-                    <col style={{ width: "11%" }} />
-                    <col style={{ width: "11%" }} />
-                    <col style={{ width: "11%" }} />
-                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "13%" }} />
                     <col style={{ width: "10%" }} />
-                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "9%" }} />
+                    <col style={{ width: "9%" }} />
                   </colgroup>
 
                   <thead>
                     <tr>
                       <th style={styles.thProdutos}>Nome</th>
                       <th style={styles.thProdutos}>Unidade</th>
+                      <th style={styles.thProdutos}>Código artigo</th>
                       <th style={styles.thProdutos}>Stock teórico</th>
                       <th style={styles.thProdutos}>Inventário inicial</th>
                       <th style={styles.thProdutos}>Stock atual</th>
@@ -1327,6 +1386,19 @@ export default function Gerente({ onLogout }) {
                               </td>
 
                               <td data-label="Unidade" style={styles.tdProdutos}>{p.unidade || ""}</td>
+                              <td data-label="Código artigo" style={styles.tdProdutos}>
+                                <input
+                                  style={{ ...styles.input, width: "100%", minWidth: 105, boxSizing: "border-box" }}
+                                  type="text"
+                                  placeholder="Código"
+                                  value={codigosEdicao[chaveCodigo(p.id, p.procedencia)] ?? ""}
+                                  onChange={e => {
+                                    const chave = chaveCodigo(p.id, p.procedencia);
+                                    setCodigosEdicao(prev => ({ ...prev, [chave]: e.target.value }));
+                                  }}
+                                  onBlur={() => guardarCodigoArtigo(p)}
+                                />
+                              </td>
                               <td data-label="Stock teórico" style={styles.tdProdutosRight}>{fmtNum(stockTeo, 3)}</td>
 
                               <td data-label="Inventário inicial" style={styles.tdProdutosRight}>
