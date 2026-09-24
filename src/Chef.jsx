@@ -114,6 +114,10 @@ export default function Chef({ onLogout }) {
   const [aLer, setALer] = useState(false);
   const [progresso, setProgresso] = useState(0);
 
+  const [inventario, setInventario] = useState({});
+  const [pesquisaInventario, setPesquisaInventario] = useState("");
+  const [aGuardarInventario, setAGuardarInventario] = useState(false);
+
   useEffect(() => {
     carregarStock();
   }, []);
@@ -263,12 +267,60 @@ export default function Chef({ onLogout }) {
         id: idLinha(),
         produto: linha.produto,
         quantidade: numero(linha.quantidade),
-        precoFatura: numero(linha.precoFatura) > 0 ? numero(linha.precoFatura) : ""
+        precoFatura: ""
       }))
     ]);
     setLinhasFatura([]);
     setFotografias([]);
     setProgresso(0);
+  }
+
+  const produtosInventario = useMemo(() => {
+    const termo = pesquisaInventario.trim().toLocaleLowerCase("pt-PT");
+    const lista = produtos.slice().sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-PT"));
+    if (!termo) return lista;
+    return lista.filter(p => `${p.nome || ""} ${p.procedencia || ""}`.toLocaleLowerCase("pt-PT").includes(termo));
+  }, [produtos, pesquisaInventario]);
+
+  function preencherInventarioVaziosComZero() {
+    const proximo = { ...inventario };
+    produtos.forEach(p => {
+      if (proximo[p.nome] === "" || proximo[p.nome] === undefined || proximo[p.nome] === null) {
+        proximo[p.nome] = "0";
+      }
+    });
+    setInventario(proximo);
+  }
+
+  async function gravarInventarioChef() {
+    const linhas = produtos.map(p => {
+      const raw = inventario[p.nome];
+      const quantidade = numero(raw);
+      if (raw === "" || raw === undefined || raw === null || !Number.isFinite(quantidade) || quantidade < 0) return null;
+      return { produto: p.nome, quantidade };
+    }).filter(Boolean);
+
+    if (!linhas.length || linhas.length !== produtos.length) {
+      alert("Preenche a contagem de todos os produtos antes de gravar o inventário.");
+      return;
+    }
+
+    if (!window.confirm(`Confirmar inventário físico de ${linhas.length} produto(s)?`)) return;
+
+    setAGuardarInventario(true);
+    const { error } = await supabase.rpc("chef_gravar_inventario", { p_itens: linhas });
+    setAGuardarInventario(false);
+
+    if (error) {
+      console.error(error);
+      alert("Não foi possível gravar o inventário.");
+      return;
+    }
+
+    setInventario({});
+    setPesquisaInventario("");
+    await carregarStock();
+    alert("Inventário gravado com sucesso.");
   }
 
   function CabecalhoArea({ titulo }) {
@@ -286,7 +338,7 @@ export default function Chef({ onLogout }) {
       <>
         <div style={estilos.tabelaWrap}>
           <table style={estilos.tabela}>
-            <thead><tr><th style={estilos.th}>Produto</th><th style={{ ...estilos.th, ...estilos.direita }}>Quantidade</th>{tipo === "entrada" && <th style={{ ...estilos.th, ...estilos.direita }}>Preço da fatura</th>}<th style={estilos.th}>Remover</th></tr></thead>
+            <thead><tr><th style={estilos.th}>Produto</th><th style={{ ...estilos.th, ...estilos.direita }}>Quantidade</th><th style={estilos.th}>Remover</th></tr></thead>
             <tbody>
               {linhas.map(linha => {
                 const produto = produtos.find(p => p.nome === linha.produto);
@@ -294,7 +346,6 @@ export default function Chef({ onLogout }) {
                   <tr key={linha.id}>
                     <td style={estilos.td}>{linha.produto}<div style={estilos.subtitulo}>{produto?.unidade}</div></td>
                     <td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(linha.quantidade)}</td>
-                    {tipo === "entrada" && <td style={{ ...estilos.td, ...estilos.direita }}>{linha.precoFatura === "" ? "—" : formatarPreco(linha.precoFatura)}</td>}
                     <td style={estilos.td}><button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => remover(linha.id)}>Retirar</button></td>
                   </tr>
                 );
@@ -330,6 +381,7 @@ export default function Chef({ onLogout }) {
               <button type="button" style={estilos.acao} onClick={() => mudarArea("stock")}><span style={{ fontSize: 28 }}>📦</span><br />Consultar stock</button>
               <button type="button" style={estilos.acao} onClick={() => mudarArea("entrada")}><span style={{ fontSize: 28 }}>➕</span><br />Registar entrada</button>
               <button type="button" style={estilos.acao} onClick={() => mudarArea("saida")}><span style={{ fontSize: 28 }}>➖</span><br />Registar saída</button>
+              <button type="button" style={estilos.acao} onClick={() => mudarArea("inventario")}><span style={{ fontSize: 28 }}>🧾</span><br />Fazer inventário</button>
             </div>
             <section style={{ ...estilos.card, marginTop: 14, ...(abaixoMinimo.length ? estilos.alerta : {}) }}>
               <h2 style={{ marginTop: 0 }}>Stock abaixo do mínimo</h2>
@@ -351,15 +403,80 @@ export default function Chef({ onLogout }) {
               <input style={estilos.input} value={pesquisa} onChange={e => setPesquisa(e.target.value)} placeholder="Pesquisar produto ou fornecedor…" />
               <div style={{ ...estilos.tabelaWrap, marginTop: 10 }}>
                 <table style={estilos.tabela}>
-                  <thead><tr><th style={estilos.th}>Produto</th><th style={estilos.th}>Fornecedor</th><th style={estilos.th}>Unidade</th><th style={{ ...estilos.th, ...estilos.direita }}>Stock atual</th><th style={{ ...estilos.th, ...estilos.direita }}>Mínimo</th><th style={{ ...estilos.th, ...estilos.direita }}>Preço unitário</th></tr></thead>
+                  <thead><tr><th style={estilos.th}>Produto</th><th style={estilos.th}>Fornecedor</th><th style={estilos.th}>Unidade</th><th style={{ ...estilos.th, ...estilos.direita }}>Stock atual</th><th style={{ ...estilos.th, ...estilos.direita }}>Mínimo</th></tr></thead>
                   <tbody>
                     {produtosFiltrados.map(produto => {
                       const alerta = Number(produto.stock_atual || 0) < Number(produto.minimo || 0);
-                      return <tr key={produto.nome} style={alerta ? estilos.alerta : undefined}><td style={estilos.td}><strong>{produto.nome}</strong></td><td style={estilos.td}>{produto.procedencia || "—"}</td><td style={estilos.td}>{produto.unidade}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(produto.stock_atual)}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(produto.minimo)}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarPreco(produto.preco_unit)}</td></tr>;
+                      return <tr key={produto.nome} style={alerta ? estilos.alerta : undefined}><td style={estilos.td}><strong>{produto.nome}</strong></td><td style={estilos.td}>{produto.procedencia || "—"}</td><td style={estilos.td}>{produto.unidade}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(produto.stock_atual)}</td><td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(produto.minimo)}</td></tr>;
                     })}
                   </tbody>
                 </table>
               </div>
+            </section>
+          </>
+        )}
+
+        {!aCarregar && !erro && area === "inventario" && (
+          <>
+            <CabecalhoArea titulo="Fazer inventário" />
+            <section style={estilos.card}>
+              <div style={estilos.nota}>
+                Inventário físico: conta o que existe realmente. Nesta área não são apresentados preços, valores totais nem o stock atual.
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
+                <input
+                  style={{ ...estilos.input, flex: "1 1 260px" }}
+                  type="search"
+                  value={pesquisaInventario}
+                  onChange={e => setPesquisaInventario(e.target.value)}
+                  placeholder="Pesquisar produto…"
+                />
+                <button type="button" style={estilos.secundario} onClick={preencherInventarioVaziosComZero}>
+                  Preencher vazios com 0
+                </button>
+              </div>
+
+              <div style={estilos.tabelaWrap}>
+                <table style={estilos.tabela}>
+                  <thead>
+                    <tr>
+                      <th style={estilos.th}>Produto</th>
+                      <th style={estilos.th}>Unidade</th>
+                      <th style={{ ...estilos.th, ...estilos.direita }}>Contagem física</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {produtosInventario.map(produto => (
+                      <tr key={produto.nome}>
+                        <td style={estilos.td}><strong>{produto.nome}</strong></td>
+                        <td style={estilos.td}>{produto.unidade}</td>
+                        <td style={{ ...estilos.td, ...estilos.direita }}>
+                          <input
+                            style={{ ...estilos.input, width: 130, textAlign: "right" }}
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.001"
+                            value={inventario[produto.nome] ?? ""}
+                            onChange={e => setInventario(atual => ({ ...atual, [produto.nome]: e.target.value }))}
+                            placeholder="0"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                type="button"
+                style={{ ...estilos.botao, width: "100%", marginTop: 14 }}
+                disabled={aGuardarInventario}
+                onClick={gravarInventarioChef}
+              >
+                {aGuardarInventario ? "A gravar…" : "Confirmar inventário"}
+              </button>
             </section>
           </>
         )}
@@ -397,10 +514,8 @@ export default function Chef({ onLogout }) {
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, alignItems: "end" }}>
                         <label><span style={estilos.etiqueta}>Produto existente</span><SeletorProduto produtos={produtos} value={linha.produto} onChange={e => atualizarLinhaFatura(linha.id, "produto", e.target.value)} /></label>
                         <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={linha.quantidade} onChange={e => atualizarLinhaFatura(linha.id, "quantidade", e.target.value)} /></label>
-                        <label><span style={estilos.etiqueta}>Preço da fatura</span><input style={estilos.input} type="number" inputMode="decimal" min="0" step="0.001" value={linha.precoFatura} onChange={e => atualizarLinhaFatura(linha.id, "precoFatura", e.target.value)} /></label>
                         <button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => setLinhasFatura(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
                       </div>
-                      {produto && <div style={{ marginTop: 7, fontSize: 14 }}>Preço atual: <strong>{formatarPreco(produto.preco_unit)}</strong>{numero(linha.precoFatura) > 0 && <> · Diferença: <strong>{formatarPreco(numero(linha.precoFatura) - Number(produto.preco_unit || 0))}</strong></>}</div>}
                     </div>
                   );
                 })}
