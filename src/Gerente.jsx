@@ -152,6 +152,13 @@ export default function Gerente({ onLogout }) {
   });
   const [pesquisaEntrada, setPesquisaEntrada] = useState("");
 
+  /* ✅ ENTRADA POR FOTOGRAFIA / FATURA */
+  const [fotografiasEntrada, setFotografiasEntrada] = useState([]);
+  const [linhasFaturaEntrada, setLinhasFaturaEntrada] = useState([]);
+  const [aLerFaturaEntrada, setALerFaturaEntrada] = useState(false);
+  const [progressoFaturaEntrada, setProgressoFaturaEntrada] = useState(0);
+  const [aRegistarFaturaEntrada, setARegistarFaturaEntrada] = useState(false);
+
   /* ✅ INVENTÁRIO MENSAL (RÁPIDO) */
   const [modoInventarioMensal, setModoInventarioMensal] = useState(false);
   const [inventarioMes, setInventarioMes] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -180,6 +187,83 @@ export default function Gerente({ onLogout }) {
         .includes(termo)
     );
   }, [produtos, pesquisaEntrada]);
+
+  function numeroEntrada(valor) {
+    const n = Number(String(valor ?? "").replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function juntarFotografiasEntrada(event) {
+    const novas = Array.from(event.target.files || []).filter(file => file.type.startsWith("image/"));
+    setFotografiasEntrada(atuais => [...atuais, ...novas].slice(0, 10));
+    event.target.value = "";
+  }
+
+  async function lerFaturaEntrada() {
+    if (!fotografiasEntrada.length) {
+      alert("Adiciona pelo menos uma fotografia.");
+      return;
+    }
+    setALerFaturaEntrada(true);
+    setProgressoFaturaEntrada(0);
+    setLinhasFaturaEntrada([]);
+    try {
+      const { lerFotografias } = await import("./invoiceOcr");
+      const linhas = await lerFotografias(fotografiasEntrada, produtos, setProgressoFaturaEntrada);
+      setLinhasFaturaEntrada(linhas);
+      if (!linhas.length) alert("Não foi possível identificar linhas de produtos. Podes continuar com a entrada manual.");
+    } catch (error) {
+      console.error(error);
+      alert("Não foi possível ler estas fotografias. Confirma se estão nítidas e tenta novamente.");
+    } finally {
+      setALerFaturaEntrada(false);
+    }
+  }
+
+  function atualizarLinhaFaturaEntrada(id, campo, valor) {
+    setLinhasFaturaEntrada(linhas => linhas.map(linha => linha.id === id ? { ...linha, [campo]: valor } : linha));
+  }
+
+  async function registarEntradasDaFatura() {
+    const pendentes = linhasFaturaEntrada.filter(
+      linha => !linha.ignorar && (!linha.produto || !(numeroEntrada(linha.quantidade) > 0))
+    );
+    if (pendentes.length) {
+      alert("Associa cada linha válida a um produto e confirma a quantidade. Remove as linhas que não interessam.");
+      return;
+    }
+
+    const validas = linhasFaturaEntrada.filter(
+      linha => !linha.ignorar && linha.produto && numeroEntrada(linha.quantidade) > 0
+    );
+    if (!validas.length) {
+      alert("Não existem linhas válidas para registar.");
+      return;
+    }
+    if (!window.confirm(`Confirmar ${validas.length} entrada(s) de stock a partir da fatura?`)) return;
+
+    setARegistarFaturaEntrada(true);
+    const agora = new Date().toISOString();
+    const payload = validas.map(linha => ({
+      produto: linha.produto,
+      quantidade: numeroEntrada(linha.quantidade),
+      datahora: agora
+    }));
+    const { error } = await supabase.from("entradas").insert(payload);
+    setARegistarFaturaEntrada(false);
+
+    if (error) {
+      mostrarErro("Não foi possível registar as entradas da fatura", error);
+      return;
+    }
+
+    setFotografiasEntrada([]);
+    setLinhasFaturaEntrada([]);
+    setProgressoFaturaEntrada(0);
+    setPesquisaEntrada("");
+    await fetchTudo();
+    alert("Entradas da fatura registadas com sucesso.");
+  }
 
   /* ===== FETCH ===== */
   useEffect(() => {
@@ -1051,6 +1135,73 @@ export default function Gerente({ onLogout }) {
         <button style={styles.button}>Registar</button>
       </form>
       </div>
+
+
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">📷 Entrada por fotografia da fatura</h3>
+        <p className="operacao-muted">
+          Adiciona uma ou várias fotografias da fatura. As imagens são usadas apenas para a leitura e não ficam guardadas.
+        </p>
+        <input type="file" accept="image/*" capture="environment" multiple onChange={juntarFotografiasEntrada} />
+
+        {fotografiasEntrada.map((foto, indice) => (
+          <div key={`${foto.name}-${indice}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0" }}>
+            <span>Fotografia {indice + 1}: {foto.name}</span>
+            <button type="button" style={{ ...styles.button, ...styles.secondary }} onClick={() => setFotografiasEntrada(lista => lista.filter((_, i) => i !== indice))}>
+              Retirar
+            </button>
+          </div>
+        ))}
+
+        {!!fotografiasEntrada.length && (
+          <button type="button" style={{ ...styles.button, marginTop: 10 }} disabled={aLerFaturaEntrada} onClick={lerFaturaEntrada}>
+            {aLerFaturaEntrada ? `A ler… ${Math.round(progressoFaturaEntrada * 100)}%` : `Ler ${fotografiasEntrada.length} fotografia(s)`}
+          </button>
+        )}
+        {aLerFaturaEntrada && <progress style={{ width: "100%", marginTop: 10 }} max="1" value={progressoFaturaEntrada} />}
+      </div>
+
+      {!!linhasFaturaEntrada.length && (
+        <div style={styles.card}>
+          <h3 className="operacao-section-title">✅ Validar leitura da fatura</h3>
+          <p className="operacao-muted">
+            Confirma o produto e a quantidade de cada linha antes de registar as entradas. Se a embalagem exigir conversão, corrige a quantidade antes de confirmar.
+          </p>
+
+          {linhasFaturaEntrada.map(linha => {
+            const produtoAtual = produtos.find(p => p.nome === linha.produto);
+            const precoFatura = numeroEntrada(linha.precoFatura);
+            return (
+              <div key={linha.id} style={{ padding: "14px 0", borderBottom: "1px solid #d9ddd4" }}>
+                <div style={{ fontSize: 13, color: "#667064", marginBottom: 8 }}>Foto {linha.foto}: {linha.descricao}</div>
+                <div className="operacao-form">
+                  <select style={styles.input} value={linha.produto || ""} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "produto", e.target.value)}>
+                    <option value="">Selecionar produto…</option>
+                    {produtos.map(p => <option key={p.nome} value={p.nome}>{p.nome} ({p.unidade})</option>)}
+                  </select>
+
+                  <input style={styles.input} type="number" inputMode="decimal" min="0.001" step="0.001" placeholder="Quantidade" value={linha.quantidade} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "quantidade", e.target.value)} />
+
+                  <input style={styles.input} type="number" inputMode="decimal" min="0" step="0.001" placeholder="Preço da fatura" value={linha.precoFatura} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "precoFatura", e.target.value)} />
+
+                  <button type="button" style={{ ...styles.button, ...styles.danger }} onClick={() => setLinhasFaturaEntrada(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
+                </div>
+
+                {produtoAtual && (
+                  <div style={{ marginTop: 7, fontSize: 14 }}>
+                    Preço atual: <strong>{Number(produtoAtual.preco_unit || 0).toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</strong>
+                    {Number.isFinite(precoFatura) && precoFatura > 0 && <> · Preço da fatura: <strong>{precoFatura.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</strong></>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <button type="button" style={{ ...styles.button, width: "100%", marginTop: 12 }} disabled={aRegistarFaturaEntrada} onClick={registarEntradasDaFatura}>
+            {aRegistarFaturaEntrada ? "A registar…" : "✅ Confirmar e registar entradas"}
+          </button>
+        </div>
+      )}
 
       </>}
 
