@@ -238,8 +238,49 @@ export async function lerFotografias(ficheiros, produtos, onProgress) {
 }
 
 
+
+function numeroFaladoPt(texto) {
+  const limpo = normalizar(texto);
+  if (!limpo) return null;
+
+  const diretos = {
+    zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5,
+    seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12,
+    treze: 13, catorze: 14, quatorze: 14, quinze: 15, dezasseis: 16,
+    dezessete: 17, dezassete: 17, dezoito: 18, dezanove: 19, dezenove: 19,
+    vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60,
+    setenta: 70, oitenta: 80, noventa: 90, cem: 100
+  };
+
+  if (Object.prototype.hasOwnProperty.call(diretos, limpo)) return diretos[limpo];
+
+  const decimal = limpo.match(/^(.+?)\s+virgula\s+(.+)$/);
+  if (decimal) {
+    const inteiro = numeroFaladoPt(decimal[1]);
+    const frac = numeroFaladoPt(decimal[2]);
+    if (inteiro !== null && frac !== null) {
+      const casas = String(Math.trunc(frac)).length;
+      return inteiro + frac / (10 ** casas);
+    }
+  }
+
+  const partes = limpo.split(/\s+e\s+/);
+  if (partes.length === 2 && diretos[partes[0]] >= 20 && diretos[partes[0]] < 100
+      && diretos[partes[1]] > 0 && diretos[partes[1]] < 10) {
+    return diretos[partes[0]] + diretos[partes[1]];
+  }
+
+  return null;
+}
+
+function separarItensFalados(texto) {
+  return String(texto || "")
+    .replace(/,\s+(?=[A-Za-zÀ-ÿ])/g, "\n")
+    .replace(/;\s*/g, "\n");
+}
+
 export function interpretarTextoSaidas(texto, produtos, foto = 0) {
-  const linhas = String(texto || "")
+  const linhas = separarItensFalados(texto)
     .split(/\r?\n/)
     .map(linha => linha.replace(/\s+/g, " ").trim())
     .filter(Boolean);
@@ -260,6 +301,18 @@ export function interpretarTextoSaidas(texto, produtos, foto = 0) {
       if (numeros.length === 1) {
         const n = numero(numeros[0][1]);
         if (n !== null && n > 0) quantidade = n;
+      }
+
+      if (quantidade === "") {
+        const palavras = semProduto.split(/\s+/).filter(Boolean);
+        for (let tamanho = Math.min(4, palavras.length); tamanho >= 1; tamanho -= 1) {
+          const candidato = palavras.slice(-tamanho).join(" ");
+          const n = numeroFaladoPt(candidato);
+          if (n !== null && n > 0) {
+            quantidade = n;
+            break;
+          }
+        }
       }
     }
 
