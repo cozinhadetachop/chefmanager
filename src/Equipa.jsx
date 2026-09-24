@@ -396,6 +396,24 @@ export default function Equipa({ onLogout }) {
               </button>
 
               {linha.descricao && <small style={{ flexBasis: "100%", color: "#667064" }}>Lido: {linha.descricao}</small>}
+
+              {!!linha.sugestoes?.length && (
+                <div style={{ flexBasis: "100%", display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                  <small style={{ width: "100%", color: "#667064" }}>
+                    {linha.produto ? "Outras associações possíveis:" : "Sugestões:"}
+                  </small>
+                  {linha.sugestoes.map(nome => (
+                    <button
+                      key={nome}
+                      type="button"
+                      style={{ ...styles.button, ...styles.secondary, minHeight: 36, padding: "6px 10px", fontSize: 13 }}
+                      onClick={() => atualizarLinhaImportada(linha.id, "produto", nome)}
+                    >
+                      {nome}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
 
