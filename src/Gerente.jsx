@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
+import SaidasRapidas from "./SaidasRapidas";
 
 /* ✅ PDF */
 import jsPDF from "jspdf";
@@ -738,7 +739,7 @@ export default function Gerente({ onLogout }) {
 
       <nav className="operacao-nav" aria-label="Secções do Gerente">
         {[
-          ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"], ["fatura", "📷 Fatura"],
+          ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"], ["saidas", "➖ Saídas"], ["fatura", "📷 Fatura"],
           ["inventario", "🧾 Inventário"], ["produtos", "📦 Produtos"],
           ["historico", "📜 Histórico"]
         ].map(([id, titulo]) => (
@@ -809,6 +810,35 @@ export default function Gerente({ onLogout }) {
           <button style={{ ...styles.button, ...styles.secondary }} type="button" onClick={() => setArea("produtos")}>Consultar produtos e stock</button>
         </div>
       </div>
+      </>}
+
+      {area === "saidas" && <>
+        <SaidasRapidas
+          produtos={produtos}
+          storageKey="gerente-saidas"
+          titulo="➖ Saídas de stock"
+          onConfirmar={async movimentos => {
+            const agora = new Date().toISOString();
+            const payload = movimentos.map(item => ({
+              produto: item.produto,
+              quantidade: Number(item.quantidade),
+              unidade: item.unidade || produtos.find(p => p.nome === item.produto)?.unidade || "",
+              setor: "Cozinha",
+              responsavel: "Gerente",
+              dataHora: agora
+            }));
+
+            const { error } = await supabase.from("saidas").insert(payload);
+            if (error) {
+              mostrarErro("Não foi possível registar as saídas", error);
+              return false;
+            }
+
+            await fetchTudo();
+            alert("Saídas registadas com sucesso.");
+            return true;
+          }}
+        />
       </>}
 
       {area === "inventario" && <>
