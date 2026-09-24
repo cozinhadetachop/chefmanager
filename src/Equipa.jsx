@@ -3,11 +3,11 @@ import { supabase } from "./supabaseClient";
 
 /* ===== Estilos (iguais ao resto da app) ===== */
 const styles = {
-  app: { minHeight: "100vh", maxWidth: 1000, margin: "0 auto", padding: 16, fontFamily: "Arial, sans-serif" },
-  card: { border: "1px solid #d9ddd4", borderRadius: 14, padding: 16, marginBottom: 12, background: "white" },
-  input: { minHeight: 44, maxWidth: "100%", padding: "9px 12px", margin: "2px 0", border: "1px solid #d9ddd4", borderRadius: 9, background: "white", fontSize: 16 },
-  button: { minHeight: 44, padding: "9px 14px", border: "1px solid #536b45", borderRadius: 9, background: "#536b45", color: "white", fontSize: 15, fontWeight: 700, cursor: "pointer" },
-  secondary: { background: "white", color: "#34452d", borderColor: "#d9ddd4" },
+  app: { minHeight: "100vh", maxWidth: 1040, margin: "0 auto", padding: "18px 18px 34px", fontFamily: 'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+  card: { border: "1px solid #dfe5da", borderRadius: 18, padding: 18, marginBottom: 14, background: "rgba(255,255,255,.94)", boxShadow: "0 6px 18px rgba(49,67,42,.055)" },
+  input: { minHeight: 46, maxWidth: "100%", padding: "10px 13px", margin: "2px 0", border: "1px solid #dce3d7", borderRadius: 11, background: "white", color: "#1f2a1d", fontSize: 16 },
+  button: { minHeight: 46, padding: "10px 15px", border: "1px solid #536b45", borderRadius: 11, background: "linear-gradient(135deg, #5d774d, #49633d)", color: "white", fontSize: 15, fontWeight: 750, cursor: "pointer", boxShadow: "0 4px 10px rgba(73,99,61,.14)" },
+  secondary: { background: "white", color: "#34452d", borderColor: "#dce3d7", boxShadow: "none" },
   danger: { backgroundColor: "#b42318", borderColor: "#b42318", color: "white" },
   produtoLinha: { fontWeight: "bold", cursor: "pointer" }
 };
