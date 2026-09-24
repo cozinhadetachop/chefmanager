@@ -108,6 +108,14 @@ export default function Chef({ onLogout }) {
   const [saidaManual, setSaidaManual] = useState({ produto: "", quantidade: "" });
   const [saidas, setSaidas] = useState([]);
   const [aGuardar, setAGuardar] = useState(false);
+  const [favoritos, setFavoritos] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("chef-favoritos") || "[]"); }
+    catch { return []; }
+  });
+  const [recentes, setRecentes] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("chef-recentes") || "[]"); }
+    catch { return []; }
+  });
 
   const [fotografias, setFotografias] = useState([]);
   const [linhasFatura, setLinhasFatura] = useState([]);
@@ -160,6 +168,41 @@ export default function Chef({ onLogout }) {
     setErro("");
   }
 
+  function guardarFavoritos(lista) {
+    setFavoritos(lista);
+    window.localStorage.setItem("chef-favoritos", JSON.stringify(lista));
+  }
+
+  function alternarFavorito(nome) {
+    if (!nome) return;
+    guardarFavoritos(
+      favoritos.includes(nome)
+        ? favoritos.filter(item => item !== nome)
+        : [nome, ...favoritos].slice(0, 12)
+    );
+  }
+
+  function registarRecente(nome) {
+    if (!nome) return;
+    setRecentes(atual => {
+      const lista = [nome, ...atual.filter(item => item !== nome)].slice(0, 8);
+      window.localStorage.setItem("chef-recentes", JSON.stringify(lista));
+      return lista;
+    });
+  }
+
+  function adicionarOuSomar(setter, item) {
+    setter(lista => {
+      const existente = lista.find(linha => linha.produto === item.produto);
+      if (!existente) return [...lista, item];
+      return lista.map(linha => linha.produto === item.produto
+        ? { ...linha, quantidade: Number(linha.quantidade) + Number(item.quantidade) }
+        : linha
+      );
+    });
+    registarRecente(item.produto);
+  }
+
   function adicionarEntradaManual(event) {
     event.preventDefault();
     const produto = produtos.find(p => p.nome === entradaManual.produto);
@@ -168,7 +211,7 @@ export default function Chef({ onLogout }) {
       alert("Seleciona um produto e indica uma quantidade válida.");
       return;
     }
-    setEntradas(lista => [...lista, { id: idLinha(), produto: produto.nome, quantidade, precoFatura: "" }]);
+    adicionarOuSomar(setEntradas, { id: idLinha(), produto: produto.nome, quantidade, precoFatura: "" });
     setEntradaManual({ produto: "", quantidade: "" });
   }
 
@@ -181,7 +224,7 @@ export default function Chef({ onLogout }) {
       return;
     }
 
-    setSaidas(lista => [...lista, { id: idLinha(), produto: produto.nome, quantidade }]);
+    adicionarOuSomar(setSaidas, { id: idLinha(), produto: produto.nome, quantidade });
     setSaidaManual({ produto: "", quantidade: "" });
   }
 
@@ -261,15 +304,28 @@ export default function Chef({ onLogout }) {
       alert("Não existem linhas válidas para adicionar.");
       return;
     }
-    setEntradas(atuais => [
-      ...atuais,
-      ...validas.map(linha => ({
-        id: idLinha(),
-        produto: linha.produto,
-        quantidade: numero(linha.quantidade),
-        precoFatura: ""
-      }))
-    ]);
+    setEntradas(atuais => {
+      const resultado = [...atuais];
+      validas.forEach(linha => {
+        const quantidade = numero(linha.quantidade);
+        const indice = resultado.findIndex(item => item.produto === linha.produto);
+        if (indice >= 0) {
+          resultado[indice] = {
+            ...resultado[indice],
+            quantidade: Number(resultado[indice].quantidade) + quantidade
+          };
+        } else {
+          resultado.push({
+            id: idLinha(),
+            produto: linha.produto,
+            quantidade,
+            precoFatura: ""
+          });
+        }
+      });
+      return resultado;
+    });
+    validas.forEach(linha => registarRecente(linha.produto));
     setLinhasFatura([]);
     setFotografias([]);
     setProgresso(0);
@@ -357,6 +413,38 @@ export default function Chef({ onLogout }) {
           {aGuardar ? "A guardar…" : `Confirmar ${tipo === "entrada" ? "entradas" : "saídas"}`}
         </button>
       </>
+    );
+  }
+
+  function AtalhosProdutos({ selecionar }) {
+    if (!favoritos.length && !recentes.length) return null;
+    return (
+      <div style={{ marginBottom: 12 }}>
+        {!!favoritos.length && (
+          <>
+            <div style={{ ...estilos.etiqueta, marginBottom: 6 }}>⭐ Favoritos</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: recentes.length ? 10 : 0 }}>
+              {favoritos.map(nome => (
+                <button key={nome} type="button" style={estilos.secundario} onClick={() => selecionar(nome)}>
+                  {nome}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {!!recentes.length && (
+          <>
+            <div style={{ ...estilos.etiqueta, marginBottom: 6 }}>🕘 Recentes</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {recentes.map(nome => (
+                <button key={nome} type="button" style={estilos.secundario} onClick={() => selecionar(nome)}>
+                  {nome}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     );
   }
 
@@ -486,9 +574,18 @@ export default function Chef({ onLogout }) {
             <CabecalhoArea titulo="Registar entrada" />
             <section style={estilos.card}>
               <h3 style={{ marginTop: 0 }}>Adicionar manualmente</h3>
+              <AtalhosProdutos selecionar={nome => setEntradaManual(atual => ({ ...atual, produto: nome }))} />
               <form style={estilos.formLinha} onSubmit={adicionarEntradaManual}>
                 <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto produtos={produtos} id="entrada-produto" value={entradaManual.produto} onChange={e => setEntradaManual({ ...entradaManual, produto: e.target.value })} /></label>
                 <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={entradaManual.quantidade} onChange={e => setEntradaManual({ ...entradaManual, quantidade: e.target.value })} required /></label>
+                <button
+                  type="button"
+                  style={estilos.secundario}
+                  disabled={!entradaManual.produto}
+                  onClick={() => alternarFavorito(entradaManual.produto)}
+                >
+                  {favoritos.includes(entradaManual.produto) ? "⭐ Favorito" : "☆ Favorito"}
+                </button>
                 <button style={estilos.botao}>Adicionar</button>
               </form>
             </section>
@@ -531,9 +628,18 @@ export default function Chef({ onLogout }) {
           <>
             <CabecalhoArea titulo="Registar saída" />
             <section style={estilos.card}>
+              <AtalhosProdutos selecionar={nome => setSaidaManual(atual => ({ ...atual, produto: nome }))} />
               <form style={estilos.formLinha} onSubmit={adicionarSaidaManual}>
                 <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto produtos={produtos} id="saida-produto" value={saidaManual.produto} onChange={e => setSaidaManual({ ...saidaManual, produto: e.target.value })} /></label>
                 <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={saidaManual.quantidade} onChange={e => setSaidaManual({ ...saidaManual, quantidade: e.target.value })} required /></label>
+                <button
+                  type="button"
+                  style={estilos.secundario}
+                  disabled={!saidaManual.produto}
+                  onClick={() => alternarFavorito(saidaManual.produto)}
+                >
+                  {favoritos.includes(saidaManual.produto) ? "⭐ Favorito" : "☆ Favorito"}
+                </button>
                 <button style={estilos.botao}>Adicionar</button>
               </form>
               {saidaManual.produto && <p style={estilos.subtitulo}>Stock disponível: {formatarNumero(produtos.find(p => p.nome === saidaManual.produto)?.stock_atual || 0)} {produtos.find(p => p.nome === saidaManual.produto)?.unidade}</p>}
