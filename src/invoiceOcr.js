@@ -236,3 +236,84 @@ export async function lerFotografias(ficheiros, produtos, onProgress) {
 
   return resultados;
 }
+
+
+export function interpretarTextoSaidas(texto, produtos, foto = 0) {
+  const linhas = String(texto || "")
+    .split(/\r?\n/)
+    .map(linha => linha.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  return linhas.map((linha, indice) => {
+    const produto = encontrarProduto(linha, produtos);
+    const semProduto = produto
+      ? normalizar(linha).replace(normalizar(produto.nome), " ").trim()
+      : normalizar(linha);
+
+    let quantidade = "";
+    const mFim = linha.match(/(?:^|\s|[;:=xX-])(-?\d+(?:[.,]\d{1,3})?)\s*(?:kg|g|l|ml|un|und|unid|cx|pct)?\s*$/i);
+    if (mFim) {
+      const n = numero(mFim[1]);
+      if (n !== null && n > 0) quantidade = n;
+    } else {
+      const numeros = [...semProduto.matchAll(/\b(\d+(?:[.,]\d{1,3})?)\b/g)];
+      if (numeros.length === 1) {
+        const n = numero(numeros[0][1]);
+        if (n !== null && n > 0) quantidade = n;
+      }
+    }
+
+    return {
+      id: `${Date.now()}-saida-${foto}-${indice}-${Math.random().toString(36).slice(2)}`,
+      foto,
+      descricao: linha,
+      produto: produto?.nome || "",
+      quantidade
+    };
+  }).filter(linha => linha.produto || linha.quantidade !== "");
+}
+
+export async function lerFotografiasSaidas(ficheiros, produtos, onProgress) {
+  const resultados = [];
+  let fotoAtual = 0;
+  const worker = await createWorker("por", undefined, {
+    logger: mensagem => {
+      if (mensagem.status === "recognizing text") {
+        const progressoFoto = Number(mensagem.progress || 0);
+        onProgress?.((fotoAtual + progressoFoto) / ficheiros.length);
+      }
+    }
+  });
+
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: "6" });
+
+    for (let i = 0; i < ficheiros.length; i += 1) {
+      fotoAtual = i;
+      let melhor = [];
+
+      for (const [tentativa, graus] of [0, 90, 270].entries()) {
+        const imagem = await prepararImagem(ficheiros[i], graus);
+        const { data } = await worker.recognize(imagem);
+        const linhas = interpretarTextoSaidas(data.text, produtos, i + 1);
+
+        const pontuacao = lista =>
+          lista.filter(linha => linha.produto && linha.quantidade !== "").length * 10
+          + lista.filter(linha => linha.produto).length * 3
+          + lista.length;
+
+        if (pontuacao(linhas) > pontuacao(melhor)) melhor = linhas;
+        onProgress?.((i + (tentativa + 1) / 3) / ficheiros.length);
+
+        if (linhas.filter(linha => linha.produto && linha.quantidade !== "").length >= 2) break;
+      }
+
+      resultados.push(...melhor);
+      onProgress?.((i + 1) / ficheiros.length);
+    }
+  } finally {
+    await worker.terminate();
+  }
+
+  return resultados;
+}
