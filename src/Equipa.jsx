@@ -249,9 +249,7 @@ export default function Equipa({ onLogout }) {
               });
               if (error) {
                 console.error(error);
-                setErroSaida(error.message?.includes("STOCK_INSUFICIENTE")
-                  ? "Stock insuficiente para uma ou mais saídas. Confirma as quantidades ou informa o gerente."
-                  : "Não foi possível guardar as saídas. Tenta novamente.");
+                setErroSaida("Não foi possível guardar as saídas. Tenta novamente.");
                 return;
               }
               setSaidasProvisorias([]);
