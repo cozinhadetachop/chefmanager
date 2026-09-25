@@ -390,10 +390,115 @@ function associarProdutoFalado(descricao, produtos) {
   };
 }
 
+
+function quantidadeFaladoNosTokens(tokens) {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const nDireto = numero(tokens[i]);
+    if (nDireto !== null && nDireto > 0) return nDireto;
+
+    for (let tamanho = Math.min(5, tokens.length - i); tamanho >= 1; tamanho -= 1) {
+      const n = numeroFaladoPt(tokens.slice(i, i + tamanho).join(" "));
+      if (n !== null && n > 0) return n;
+    }
+  }
+  return "";
+}
+
+function encontrarTodosProdutosNoDitado(texto, produtos, foto = 0) {
+  const palavras = normalizar(texto).split(/\s+/).filter(Boolean);
+  if (!palavras.length) return [];
+
+  const grupos = new Map();
+
+  (produtos || []).forEach(produto => {
+    const tokens = tokensProduto(produto.nome);
+    if (!tokens.length) return;
+    const chave = tokens.join(" ");
+    if (!grupos.has(chave)) grupos.set(chave, { tokens, produtos: [] });
+    grupos.get(chave).produtos.push(produto);
+  });
+
+  const candidatos = [];
+
+  grupos.forEach(grupo => {
+    const alvo = grupo.tokens;
+    if (!alvo.length || alvo.length > palavras.length) return;
+
+    for (let inicio = 0; inicio <= palavras.length - alvo.length; inicio += 1) {
+      let coincide = true;
+      for (let j = 0; j < alvo.length; j += 1) {
+        if (singularizarPalavra(palavras[inicio + j]) !== alvo[j]) {
+          coincide = false;
+          break;
+        }
+      }
+      if (!coincide) continue;
+
+      candidatos.push({
+        inicio,
+        fim: inicio + alvo.length,
+        tamanho: alvo.length,
+        grupo
+      });
+    }
+  });
+
+  if (!candidatos.length) return [];
+
+  // Se "bacalhau" e "bacalhau a bras" começarem no mesmo ponto,
+  // conserva a correspondência mais específica.
+  candidatos.sort((a, b) => a.inicio - b.inicio || b.tamanho - a.tamanho);
+
+  const ocorrencias = [];
+  for (const candidato of candidatos) {
+    const sobrepoe = ocorrencias.some(item =>
+      candidato.inicio < item.fim && candidato.fim > item.inicio
+    );
+    if (!sobrepoe) ocorrencias.push(candidato);
+  }
+
+  ocorrencias.sort((a, b) => a.inicio - b.inicio);
+
+  return ocorrencias.map((ocorrencia, indice) => {
+    const seguinte = ocorrencias[indice + 1];
+    const fimSegmento = seguinte ? seguinte.inicio : palavras.length;
+    const depoisProduto = palavras.slice(ocorrencia.fim, fimSegmento);
+
+    // Normalmente a quantidade é dita depois do produto.
+    let quantidade = quantidadeFaladoNosTokens(depoisProduto);
+
+    // Se não houver quantidade depois, tenta o pequeno espaço imediatamente
+    // antes do produto, útil para ditados como "dois quilos cebola".
+    if (quantidade === "") {
+      const anterior = ocorrencias[indice - 1];
+      const inicioAnterior = anterior ? anterior.fim : Math.max(0, ocorrencia.inicio - 6);
+      quantidade = quantidadeFaladoNosTokens(palavras.slice(inicioAnterior, ocorrencia.inicio));
+    }
+
+    const opcoes = ocorrencia.grupo.produtos;
+    const produtoSeguro = opcoes.length === 1 ? opcoes[0] : null;
+
+    return {
+      id: Date.now() + "-catalogo-" + foto + "-" + indice + "-" + Math.random().toString(36).slice(2),
+      foto,
+      descricao: palavras.slice(ocorrencia.inicio, fimSegmento).join(" "),
+      produto: produtoSeguro?.nome || "",
+      quantidade,
+      sugestoes: opcoes.slice(0, 3).map(p => p.nome)
+    };
+  });
+}
+
 export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
   const original = String(texto || "").trim();
   const normal = normalizar(original);
   if (!normal) return [];
+
+  // Primeiro percorre o ditado inteiro à procura de TODOS os produtos
+  // existentes no catálogo. Esta via evita que apenas o primeiro produto
+  // seja devolvido quando a lista é dita toda seguida.
+  const produtosEncontrados = encontrarTodosProdutosNoDitado(original, produtos, foto);
+  if (produtosEncontrados.length >= 2) return produtosEncontrados;
 
   const palavras = normal.split(/\s+/).filter(Boolean);
   const itens = [];
