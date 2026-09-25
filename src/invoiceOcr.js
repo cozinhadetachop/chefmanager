@@ -500,12 +500,54 @@ export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
     .filter(Boolean);
 
   if (segmentosProximo.length >= 2) {
-    return segmentosProximo.flatMap((segmento, indice) => {
-      const linhasSegmento = interpretarDitadoSaidas(segmento, produtos, foto);
-      return linhasSegmento.map((linha, subIndice) => ({
-        ...linha,
-        id: Date.now() + "-proximo-" + foto + "-" + indice + "-" + subIndice + "-" + Math.random().toString(36).slice(2)
-      }));
+    return segmentosProximo.map((segmento, indice) => {
+      const normalSegmento = normalizar(segmento);
+      const palavrasSegmento = normalSegmento.split(/\s+/).filter(Boolean);
+
+      // Procura a primeira quantidade dita neste bloco.
+      let quantidade = "";
+      let posQuantidade = palavrasSegmento.length;
+      for (let i = 0; i < palavrasSegmento.length; i += 1) {
+        const direto = numero(palavrasSegmento[i]);
+        if (direto !== null && direto > 0) {
+          quantidade = direto;
+          posQuantidade = i;
+          break;
+        }
+
+        let encontrou = false;
+        for (let tamanho = Math.min(5, palavrasSegmento.length - i); tamanho >= 1; tamanho -= 1) {
+          const n = numeroFaladoPt(palavrasSegmento.slice(i, i + tamanho).join(" "));
+          if (n !== null && n > 0) {
+            quantidade = n;
+            posQuantidade = i;
+            encontrou = true;
+            break;
+          }
+        }
+        if (encontrou) break;
+      }
+
+      const descricaoProduto = palavrasSegmento.slice(0, posQuantidade).join(" ").trim();
+      const candidatos = candidatosProdutoFalado(descricaoProduto || segmento, produtos);
+      const primeiro = candidatos[0];
+
+      // Como "próximo" já nos dá uma fronteira explícita de produto,
+      // podemos ser mais tolerantes com pequenos erros do reconhecimento de voz,
+      // como "portas" em vez de "potas".
+      const produto =
+        primeiro && primeiro.score >= 0.48
+          ? primeiro.produto
+          : null;
+
+      return {
+        id: Date.now() + "-proximo-" + foto + "-" + indice + "-" + Math.random().toString(36).slice(2),
+        foto,
+        descricao: segmento,
+        produto: produto?.nome || "",
+        quantidade,
+        sugestoes: candidatos.slice(0, 3).map(item => item.produto.nome)
+      };
     });
   }
   const normal = normalizar(original);
