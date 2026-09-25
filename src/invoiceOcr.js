@@ -296,6 +296,10 @@ function tokensProduto(texto) {
   const ignorar = new Set([
     "de", "da", "do", "das", "dos", "com", "sem", "para",
     "kg", "g", "gr", "l", "lt", "ml", "cl", "un", "uni", "unid",
+    "quilo", "quilos", "quilograma", "quilogramas",
+    "grama", "gramas", "litro", "litros",
+    "unidade", "unidades", "caixa", "caixas", "pacote", "pacotes",
+    "garrafa", "garrafas", "saco", "sacos",
     "cx", "pct", "pack", "tam"
   ]);
 
@@ -433,6 +437,28 @@ export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
       }
 
       i += tamanhoNumero;
+
+      // Depois da quantidade, ignora a unidade falada para que o próximo
+      // produto comece limpo: "arroz dois quilos batata cinco quilos".
+      const unidadesFaladas = new Set([
+        "kg", "quilo", "quilos", "quilograma", "quilogramas",
+        "g", "gr", "grama", "gramas",
+        "l", "lt", "litro", "litros",
+        "ml", "cl",
+        "un", "uni", "unid", "unidade", "unidades",
+        "cx", "caixa", "caixas",
+        "pct", "pacote", "pacotes",
+        "pack", "garrafa", "garrafas", "saco", "sacos"
+      ]);
+
+      while (i < palavras.length && unidadesFaladas.has(palavras[i])) {
+        i += 1;
+      }
+
+      // Também tolera um "e" natural entre itens:
+      // "arroz dois quilos e batata cinco quilos".
+      if (palavras[i] === "e") i += 1;
+
       inicioDescricao = i;
       continue;
     }
