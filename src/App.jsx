@@ -74,6 +74,7 @@ const estilos = {
 
 const MAX_TENTATIVAS = 5;
 const BLOQUEIO_MS = 60_000;
+const INATIVIDADE_MS = 10 * 60 * 1000;
 
 export default function App() {
   const [perfil, setPerfil] = useState(null);
@@ -105,6 +106,36 @@ export default function App() {
     const timer = window.setInterval(() => setAgora(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [bloqueadoAte]);
+
+  useEffect(() => {
+    if (!perfil) return undefined;
+
+    let timerInatividade = null;
+
+    const terminarPorInatividade = () => {
+      terminarSessao()
+        .catch(error => console.error("Erro ao terminar sessão por inatividade:", error))
+        .finally(() => {
+          setPerfil(null);
+          setPin("");
+        });
+    };
+
+    const reiniciarTemporizador = () => {
+      if (timerInatividade) window.clearTimeout(timerInatividade);
+      timerInatividade = window.setTimeout(terminarPorInatividade, INATIVIDADE_MS);
+    };
+
+    const eventos = ["pointerdown", "pointermove", "keydown", "touchstart", "scroll"];
+    eventos.forEach(evento => window.addEventListener(evento, reiniciarTemporizador, { passive: true }));
+
+    reiniciarTemporizador();
+
+    return () => {
+      if (timerInatividade) window.clearTimeout(timerInatividade);
+      eventos.forEach(evento => window.removeEventListener(evento, reiniciarTemporizador));
+    };
+  }, [perfil]);
 
   const segundosBloqueio = useMemo(
     () => Math.max(0, Math.ceil((bloqueadoAte - agora) / 1000)),
