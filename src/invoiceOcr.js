@@ -491,6 +491,23 @@ function encontrarTodosProdutosNoDitado(texto, produtos, foto = 0) {
 
 export function interpretarDitadoSaidas(texto, produtos, foto = 0) {
   const original = String(texto || "").trim();
+
+  // "próximo" funciona como separador explícito entre produtos no ditado.
+  // Ex.: "filetes cinco vírgula três quilos próximo potas dez vírgula um quilos"
+  const segmentosProximo = String(original)
+    .split(/\bpr[oó]ximo\b/gi)
+    .map(parte => parte.trim())
+    .filter(Boolean);
+
+  if (segmentosProximo.length >= 2) {
+    return segmentosProximo.flatMap((segmento, indice) => {
+      const linhasSegmento = interpretarDitadoSaidas(segmento, produtos, foto);
+      return linhasSegmento.map((linha, subIndice) => ({
+        ...linha,
+        id: Date.now() + "-proximo-" + foto + "-" + indice + "-" + subIndice + "-" + Math.random().toString(36).slice(2)
+      }));
+    });
+  }
   const normal = normalizar(original);
   if (!normal) return [];
 
