@@ -1376,10 +1376,10 @@ export default function Gerente({ onLogout }) {
                       .map(p => {
                         const stockTeo = Number(inventarioTeorico[p.nome] || 0);
                         const stockAjust = Number(inventarioAjustado[p.nome] || 0);
-                        const minimo = Number(p.minimo || 0);
+                        const minimo = p.minimo === null || p.minimo === undefined || p.minimo === "" ? null : Number(p.minimo);
                         const preco = Number(p.preco_unit || 0);
 
-                        const abaixo = stockAjust < minimo;
+                        const abaixo = minimo !== null && stockAjust < minimo;
                         const aberto = produtoAberto === p.nome;
 
                         return (
@@ -1454,7 +1454,7 @@ export default function Gerente({ onLogout }) {
                               </td>
 
                               <td data-label="Stock atual" style={styles.tdProdutosRight}>{fmtNum(stockAjust, 3)}</td>
-                              <td data-label="Mínimo" style={styles.tdProdutosRight}>{fmtNum(minimo, 3)}</td>
+                              <td data-label="Mínimo" style={styles.tdProdutosRight}>{minimo === null ? "—" : fmtNum(minimo, 3)}</td>
                               <td data-label="Preço" style={styles.tdProdutosRight}>{fmtNum(preco, 2)} €</td>
 
                               <td data-label="Ações" style={styles.tdProdutosRight}>
