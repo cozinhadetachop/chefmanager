@@ -815,29 +815,33 @@ export default function Gerente({ onLogout }) {
           </div>
 
           {avisosAbertos && (
-            <table className="mobile-cards" style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Produto</th>
-                  <th style={styles.th}>Stock atual</th>
-                  <th style={styles.th}>Stock mínimo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {produtosAbaixoMinimo.map(p => {
+            <div style={{ marginTop: 12 }}>
+              {produtosAbaixoMinimo
+                .slice()
+                .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-PT"))
+                .map(p => {
                   const atual = Number(inventarioAjustado[p.nome] || 0);
                   const minimo = Number(p.minimo || 0);
 
                   return (
-                    <tr key={p.nome}>
-                      <td data-label="Produto" style={{ ...styles.td, ...styles.warning }}>{p.nome}</td>
-                      <td data-label="Stock atual" style={styles.td}>{fmtNum(atual, 3)}</td>
-                      <td data-label="Mínimo" style={styles.td}>{fmtNum(minimo, 3)}</td>
-                    </tr>
+                    <div
+                      key={p.nome}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(0, 1fr) auto auto",
+                        gap: 12,
+                        alignItems: "center",
+                        padding: "10px 0",
+                        borderTop: "1px solid #ecefea"
+                      }}
+                    >
+                      <strong style={{ ...styles.warning, minWidth: 0 }}>{p.nome}</strong>
+                      <span style={{ whiteSpace: "nowrap" }}>Atual: {fmtNum(atual, 3)} {p.unidade || ""}</span>
+                      <span style={{ whiteSpace: "nowrap" }}>Mín.: {fmtNum(minimo, 3)} {p.unidade || ""}</span>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+            </div>
           )}
 
           {!avisosAbertos && (
