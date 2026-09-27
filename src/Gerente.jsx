@@ -137,6 +137,7 @@ export default function Gerente({ onLogout }) {
   /* ✅ Toggles históricos (começam fechados) */
   const [entradasAbertas, setEntradasAbertas] = useState(false);
   const [saidasAbertas, setSaidasAbertas] = useState(true);
+  const [movimentoEdicao, setMovimentoEdicao] = useState(null);
 
   const [produtoNovo, setProdutoNovo] = useState({
     nome: "",
@@ -622,6 +623,68 @@ export default function Gerente({ onLogout }) {
     const data = d.toLocaleDateString();
     const hora = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     return { data, hora };
+  }
+
+  function valoresDataHoraEdicao(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return { data: "", hora: "" };
+    const pad = valor => String(valor).padStart(2, "0");
+    return {
+      data: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      hora: `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    };
+  }
+
+  function iniciarEdicaoMovimento(tipo, movimento) {
+    const campoData = tipo === "entrada" ? movimento.datahora : movimento.dataHora;
+    const { data, hora } = valoresDataHoraEdicao(campoData);
+    setMovimentoEdicao({
+      tipo,
+      id: movimento.id,
+      produto: movimento.produto || "",
+      quantidade: String(movimento.quantidade ?? ""),
+      data,
+      hora,
+      responsavel: movimento.responsavel || ""
+    });
+  }
+
+  async function guardarEdicaoMovimento() {
+    if (!movimentoEdicao) return;
+
+    const quantidade = Number(String(movimentoEdicao.quantidade).replace(",", "."));
+    if (!movimentoEdicao.produto || !Number.isFinite(quantidade) || quantidade <= 0) {
+      alert("Confirma o produto e introduz uma quantidade superior a zero.");
+      return;
+    }
+    if (!movimentoEdicao.data || !movimentoEdicao.hora) {
+      alert("Confirma a data e a hora.");
+      return;
+    }
+
+    const dataHora = new Date(`${movimentoEdicao.data}T${movimentoEdicao.hora}:00`).toISOString();
+    const tabela = movimentoEdicao.tipo === "entrada" ? "entradas" : "saidas";
+    const campoData = movimentoEdicao.tipo === "entrada" ? "datahora" : "dataHora";
+
+    const payload = {
+      produto: movimentoEdicao.produto,
+      quantidade,
+      responsavel: movimentoEdicao.responsavel.trim() || null,
+      [campoData]: dataHora
+    };
+
+    if (movimentoEdicao.tipo === "saida") {
+      payload.unidade = getUnidadeByNome(movimentoEdicao.produto);
+    }
+
+    const { error } = await supabase.from(tabela).update(payload).eq("id", movimentoEdicao.id);
+    if (error) {
+      mostrarErro("Não foi possível guardar a correção", error);
+      return;
+    }
+
+    setMovimentoEdicao(null);
+    await fetchTudo();
   }
 
   function exportPDFEntradas() {
@@ -1581,31 +1644,63 @@ export default function Gerente({ onLogout }) {
                   const { data, hora } = formatDateTimeParts(e.datahora);
                   return (
                     <tr key={e.id}>
-                      <td data-label="Produto" style={styles.tdHist} title={e.produto || ""}>{e.produto || ""}</td>
-                      <td data-label="Unidade" style={styles.tdHist}>{getUnidadeByNome(e.produto)}</td>
-                      <td data-label="Quantidade" style={styles.tdHistRight}>{fmtNum(e.quantidade, 3)}</td>
-                      <td data-label="Data" style={styles.tdHist}>{data}</td>
-                      <td data-label="Hora" style={styles.tdHist}>{hora}</td>
-                      <td data-label="Responsável" style={styles.tdHist}>{e.responsavel || "—"}</td>
+                      <td data-label="Produto" style={styles.tdHist} title={e.produto || ""}>
+                        {movimentoEdicao?.tipo === "entrada" && movimentoEdicao?.id === e.id ? (
+                          <select style={styles.input} value={movimentoEdicao.produto} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, produto: ev.target.value }))}>
+                            {produtos.map(p => <option key={p.id || p.nome} value={p.nome}>{p.nome}</option>)}
+                          </select>
+                        ) : e.produto || ""}
+                      </td>
+                      <td data-label="Unidade" style={styles.tdHist}>{getUnidadeByNome(movimentoEdicao?.tipo === "entrada" && movimentoEdicao?.id === e.id ? movimentoEdicao.produto : e.produto)}</td>
+                      <td data-label="Quantidade" style={styles.tdHistRight}>
+                        {movimentoEdicao?.tipo === "entrada" && movimentoEdicao?.id === e.id
+                          ? <input style={styles.input} type="number" step="0.001" value={movimentoEdicao.quantidade} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, quantidade: ev.target.value }))} />
+                          : fmtNum(e.quantidade, 3)}
+                      </td>
+                      <td data-label="Data" style={styles.tdHist}>
+                        {movimentoEdicao?.tipo === "entrada" && movimentoEdicao?.id === e.id
+                          ? <input style={styles.input} type="date" value={movimentoEdicao.data} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, data: ev.target.value }))} />
+                          : data}
+                      </td>
+                      <td data-label="Hora" style={styles.tdHist}>
+                        {movimentoEdicao?.tipo === "entrada" && movimentoEdicao?.id === e.id
+                          ? <input style={styles.input} type="time" value={movimentoEdicao.hora} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, hora: ev.target.value }))} />
+                          : hora}
+                      </td>
+                      <td data-label="Responsável" style={styles.tdHist}>
+                        {movimentoEdicao?.tipo === "entrada" && movimentoEdicao?.id === e.id
+                          ? <input style={styles.input} value={movimentoEdicao.responsavel} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, responsavel: ev.target.value }))} />
+                          : e.responsavel || "—"}
+                      </td>
                       <td data-label="Ações" style={styles.tdHist}>
-                        <button
-                          type="button"
-                          style={{ ...styles.button, ...styles.danger, minHeight: 36, padding: "6px 10px" }}
-                          onClick={async () => {
-                            const confirmar = window.confirm(
-                              `Eliminar esta entrada?\n\n${e.produto || ""} · ${fmtNum(e.quantidade, 3)} ${getUnidadeByNome(e.produto)}\n${data} às ${hora}\n\nEsta ação vai alterar o stock.`
-                            );
-                            if (!confirmar) return;
-                            const { error } = await supabase.from("entradas").delete().eq("id", e.id);
-                            if (error) {
-                              mostrarErro("Não foi possível eliminar a entrada", error);
-                              return;
-                            }
-                            await fetchTudo();
-                          }}
-                        >
-                          🗑️ Eliminar
-                        </button>
+                        {movimentoEdicao?.tipo === "entrada" && movimentoEdicao?.id === e.id ? (
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button type="button" style={{ ...styles.button, minHeight: 36, padding: "6px 10px" }} onClick={guardarEdicaoMovimento}>✅ Guardar</button>
+                            <button type="button" style={{ ...styles.button, ...styles.secondary, minHeight: 36, padding: "6px 10px" }} onClick={() => setMovimentoEdicao(null)}>Cancelar</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button type="button" style={{ ...styles.button, minHeight: 36, padding: "6px 10px" }} onClick={() => iniciarEdicaoMovimento("entrada", e)}>✏️ Editar</button>
+                            <button
+                              type="button"
+                              style={{ ...styles.button, ...styles.danger, minHeight: 36, padding: "6px 10px" }}
+                              onClick={async () => {
+                                const confirmar = window.confirm(
+                                  `Eliminar esta entrada?\n\n${e.produto || ""} · ${fmtNum(e.quantidade, 3)} ${getUnidadeByNome(e.produto)}\n${data} às ${hora}\n\nEsta ação vai alterar o stock.`
+                                );
+                                if (!confirmar) return;
+                                const { error } = await supabase.from("entradas").delete().eq("id", e.id);
+                                if (error) {
+                                  mostrarErro("Não foi possível eliminar a entrada", error);
+                                  return;
+                                }
+                                await fetchTudo();
+                              }}
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1705,31 +1800,63 @@ export default function Gerente({ onLogout }) {
                   const { data, hora } = formatDateTimeParts(s.dataHora);
                   return (
                     <tr key={s.id}>
-                      <td data-label="Produto" style={styles.tdHist} title={s.produto || ""}>{s.produto || ""}</td>
-                      <td data-label="Unidade" style={styles.tdHist}>{getUnidadeByNome(s.produto)}</td>
-                      <td data-label="Quantidade" style={styles.tdHistRight}>{fmtNum(s.quantidade, 3)}</td>
-                      <td data-label="Data" style={styles.tdHist}>{data}</td>
-                      <td data-label="Hora" style={styles.tdHist}>{hora}</td>
-                      <td data-label="Responsável" style={styles.tdHist}>{s.responsavel || "—"}</td>
+                      <td data-label="Produto" style={styles.tdHist} title={s.produto || ""}>
+                        {movimentoEdicao?.tipo === "saida" && movimentoEdicao?.id === s.id ? (
+                          <select style={styles.input} value={movimentoEdicao.produto} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, produto: ev.target.value }))}>
+                            {produtos.map(p => <option key={p.id || p.nome} value={p.nome}>{p.nome}</option>)}
+                          </select>
+                        ) : s.produto || ""}
+                      </td>
+                      <td data-label="Unidade" style={styles.tdHist}>{getUnidadeByNome(movimentoEdicao?.tipo === "saida" && movimentoEdicao?.id === s.id ? movimentoEdicao.produto : s.produto)}</td>
+                      <td data-label="Quantidade" style={styles.tdHistRight}>
+                        {movimentoEdicao?.tipo === "saida" && movimentoEdicao?.id === s.id
+                          ? <input style={styles.input} type="number" step="0.001" value={movimentoEdicao.quantidade} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, quantidade: ev.target.value }))} />
+                          : fmtNum(s.quantidade, 3)}
+                      </td>
+                      <td data-label="Data" style={styles.tdHist}>
+                        {movimentoEdicao?.tipo === "saida" && movimentoEdicao?.id === s.id
+                          ? <input style={styles.input} type="date" value={movimentoEdicao.data} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, data: ev.target.value }))} />
+                          : data}
+                      </td>
+                      <td data-label="Hora" style={styles.tdHist}>
+                        {movimentoEdicao?.tipo === "saida" && movimentoEdicao?.id === s.id
+                          ? <input style={styles.input} type="time" value={movimentoEdicao.hora} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, hora: ev.target.value }))} />
+                          : hora}
+                      </td>
+                      <td data-label="Responsável" style={styles.tdHist}>
+                        {movimentoEdicao?.tipo === "saida" && movimentoEdicao?.id === s.id
+                          ? <input style={styles.input} value={movimentoEdicao.responsavel} onChange={ev => setMovimentoEdicao(prev => ({ ...prev, responsavel: ev.target.value }))} />
+                          : s.responsavel || "—"}
+                      </td>
                       <td data-label="Ações" style={styles.tdHist}>
-                        <button
-                          type="button"
-                          style={{ ...styles.button, ...styles.danger, minHeight: 36, padding: "6px 10px" }}
-                          onClick={async () => {
-                            const confirmar = window.confirm(
-                              `Eliminar esta saída?\n\n${s.produto || ""} · ${fmtNum(s.quantidade, 3)} ${getUnidadeByNome(s.produto)}\n${data} às ${hora}\n\nEsta ação vai alterar o stock.`
-                            );
-                            if (!confirmar) return;
-                            const { error } = await supabase.from("saidas").delete().eq("id", s.id);
-                            if (error) {
-                              mostrarErro("Não foi possível eliminar a saída", error);
-                              return;
-                            }
-                            await fetchTudo();
-                          }}
-                        >
-                          🗑️ Eliminar
-                        </button>
+                        {movimentoEdicao?.tipo === "saida" && movimentoEdicao?.id === s.id ? (
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button type="button" style={{ ...styles.button, minHeight: 36, padding: "6px 10px" }} onClick={guardarEdicaoMovimento}>✅ Guardar</button>
+                            <button type="button" style={{ ...styles.button, ...styles.secondary, minHeight: 36, padding: "6px 10px" }} onClick={() => setMovimentoEdicao(null)}>Cancelar</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button type="button" style={{ ...styles.button, minHeight: 36, padding: "6px 10px" }} onClick={() => iniciarEdicaoMovimento("saida", s)}>✏️ Editar</button>
+                            <button
+                              type="button"
+                              style={{ ...styles.button, ...styles.danger, minHeight: 36, padding: "6px 10px" }}
+                              onClick={async () => {
+                                const confirmar = window.confirm(
+                                  `Eliminar esta saída?\n\n${s.produto || ""} · ${fmtNum(s.quantidade, 3)} ${getUnidadeByNome(s.produto)}\n${data} às ${hora}\n\nEsta ação vai alterar o stock.`
+                                );
+                                if (!confirmar) return;
+                                const { error } = await supabase.from("saidas").delete().eq("id", s.id);
+                                if (error) {
+                                  mostrarErro("Não foi possível eliminar a saída", error);
+                                  return;
+                                }
+                                await fetchTudo();
+                              }}
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
