@@ -662,7 +662,10 @@ export default function Gerente({ onLogout }) {
       return;
     }
 
-    const dataHora = new Date(`${movimentoEdicao.data}T${movimentoEdicao.hora}:00`).toISOString();
+    // As colunas datahora/dataHora são "timestamp without time zone".
+    // Guardamos exatamente a data/hora escolhidas, sem converter para UTC,
+    // para evitar que o movimento mude de dia e desapareça do filtro.
+    const dataHora = `${movimentoEdicao.data}T${movimentoEdicao.hora}:00`;
     const tabela = movimentoEdicao.tipo === "entrada" ? "entradas" : "saidas";
     const campoData = movimentoEdicao.tipo === "entrada" ? "datahora" : "dataHora";
 
