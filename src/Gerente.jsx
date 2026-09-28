@@ -447,11 +447,11 @@ export default function Gerente({ onLogout }) {
 
   /* ✅ INVENTÁRIO MENSAL (RÁPIDO) - HELPERS */
   function iniciarInventarioMensal() {
-    // copia o stock real atual para edição (para ficar tudo pré-preenchido e rápido)
+    // Inventário pode ser total ou parcial.
+    // Começa vazio para garantir que apenas os produtos efetivamente contados são atualizados.
     const base = {};
     produtos.forEach(p => {
-      const atual = inventarioReal[p.nome];
-      base[p.nome] = atual ?? "";
+      base[p.nome] = "";
     });
     setInventarioEdicao(base);
     setInventarioColar("");
@@ -538,7 +538,7 @@ export default function Gerente({ onLogout }) {
 
   function preencherVaziosComZeroInventario() {
     const next = { ...inventarioEdicao };
-    produtos.forEach(p => {
+    inventarioMensalLista.forEach(p => {
       const v = next[p.nome];
       if (v === "" || v === null || typeof v === "undefined") next[p.nome] = "0";
     });
@@ -555,10 +555,15 @@ export default function Gerente({ onLogout }) {
       })
       .filter(Boolean);
 
-    if (!rows.length || rows.length !== produtos.length) {
-      return alert("Preenche um valor válido (zero ou superior) para todos os produtos antes de gravar.");
+    if (!rows.length) {
+      return alert("Preenche pelo menos um produto com um valor válido (zero ou superior).");
     }
     if (!motivoInventario.trim()) return alert("Indica o motivo do inventário antes de gravar.");
+
+    const confirmarParcial = window.confirm(
+      `Vais atualizar o inventário de ${rows.length} produto(s).\n\nOs restantes produtos não serão alterados.\n\nContinuar?`
+    );
+    if (!confirmarParcial) return;
 
     /* ✅ ALERTA DISCREPÂNCIA NEGATIVA (Inventário < Teórico) */
     const negativas = rows
@@ -604,9 +609,9 @@ export default function Gerente({ onLogout }) {
     await fetchTudo();
 
     if (negativas.length > 0) {
-      alert(`✅ Inventário gravado (mês: ${inventarioMes}). Atenção: houve ${negativas.length} discrepância(s) negativa(s).`);
+      alert(`✅ Inventário atualizado: ${rows.length} produto(s). Atenção: houve ${negativas.length} discrepância(s) negativa(s).`);
     } else {
-      alert(`✅ Inventário gravado (mês: ${inventarioMes}). Já aparece em Stock real.`);
+      alert(`✅ Inventário atualizado: ${rows.length} produto(s). Os restantes mantiveram-se inalterados.`);
     }
 
     setModoInventarioMensal(false);
@@ -969,7 +974,10 @@ export default function Gerente({ onLogout }) {
 
       {/* ✅ INVENTÁRIO MENSAL (RÁPIDO) */}
       <div style={{ ...styles.card, borderColor: "#4caf50" }}>
-        <h3 className="operacao-section-title">🧾 Inventário mensal</h3><p className="operacao-muted">A contagem atualiza o stock real.</p>
+        <h3 className="operacao-section-title">🧾 Inventário</h3>
+        <p className="operacao-muted">
+          Pode ser total ou parcial. Só os produtos que preencheres serão atualizados; os restantes não são alterados.
+        </p>
 
         {!modoInventarioMensal ? (
           <div>
@@ -981,7 +989,7 @@ export default function Gerente({ onLogout }) {
               onChange={e => setInventarioMes(e.target.value)}
             />
             <button style={styles.button} type="button" onClick={iniciarInventarioMensal}>
-              🚀 Iniciar inventário mensal
+              🚀 Iniciar inventário
             </button>
           </div>
         ) : (
@@ -1003,7 +1011,7 @@ export default function Gerente({ onLogout }) {
               />
 
               <button style={styles.button} type="button" onClick={preencherVaziosComZeroInventario}>
-                0️⃣ Preencher vazios com 0
+                0️⃣ Preencher visíveis com 0
               </button>
 
               <button style={{ ...styles.button, ...styles.danger }} type="button" onClick={fecharInventarioMensal}>
@@ -1039,7 +1047,7 @@ export default function Gerente({ onLogout }) {
                 style={{ ...styles.input, display: "block", width: "min(100%, 520px)", boxSizing: "border-box" }}
                 type="text"
                 maxLength={500}
-                placeholder="Ex.: Contagem física de fim de mês"
+                placeholder="Ex.: Contagem parcial de carnes / inventário de fim de mês"
                 value={motivoInventario}
                 onChange={e => setMotivoInventario(e.target.value)}
               />
@@ -1081,7 +1089,7 @@ export default function Gerente({ onLogout }) {
 
             <div style={{ marginTop: 8 }}>
               <button style={styles.button} type="button" onClick={gravarInventarioMensal}>
-                ✅ Gravar inventário do mês (Stock real)
+                ✅ Atualizar produtos preenchidos
               </button>
             </div>
           </div>
