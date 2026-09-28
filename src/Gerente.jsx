@@ -423,6 +423,26 @@ export default function Gerente({ onLogout }) {
     return base.filter(p => (p.nome || "").toLowerCase().includes(q));
   }, [produtos, inventarioFiltro]);
 
+  const inventarioProvisorio = useMemo(() => {
+    return produtos
+      .filter(p => {
+        const valor = inventarioEdicao[p.nome];
+        return valor !== "" && valor !== null && typeof valor !== "undefined";
+      })
+      .map(p => {
+        const novo = Number(String(inventarioEdicao[p.nome]).replace(",", "."));
+        const atual = Number(inventarioAjustado[p.nome] || 0);
+        return {
+          ...p,
+          valorIntroduzido: inventarioEdicao[p.nome],
+          novo: Number.isFinite(novo) ? novo : null,
+          atual
+        };
+      })
+      .filter(p => p.novo !== null && p.novo >= 0)
+      .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-PT"));
+  }, [produtos, inventarioEdicao, inventarioAjustado]);
+
   /* ===== AVISOS + VALOR TOTAL ===== */
   const produtosAbaixoMinimo = useMemo(() => {
     return produtos.filter(p => Number(inventarioAjustado[p.nome] || 0) < Number(p.minimo || 0));
@@ -1087,9 +1107,55 @@ export default function Gerente({ onLogout }) {
               </tbody>
             </table>
 
+            <div style={{ marginTop: 16, padding: 14, border: "1px solid #d8e2d2", borderRadius: 12, background: "#f8faf7" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <strong>📋 Lista provisória do inventário</strong>
+                <span style={{ opacity: 0.75 }}>{inventarioProvisorio.length} produto(s)</span>
+              </div>
+
+              {inventarioProvisorio.length === 0 ? (
+                <p style={{ marginBottom: 0, opacity: 0.7 }}>
+                  Ainda não adicionaste nenhum produto. Pesquisa um produto e introduz a quantidade contada.
+                </p>
+              ) : (
+                <div style={{ marginTop: 10 }}>
+                  {inventarioProvisorio.map(p => (
+                    <div
+                      key={`provisorio-${p.nome}`}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(0, 1fr) auto auto",
+                        gap: 10,
+                        alignItems: "center",
+                        padding: "9px 0",
+                        borderTop: "1px solid #e4e9e1"
+                      }}
+                    >
+                      <div>
+                        <strong>{p.nome}</strong>
+                        <div style={{ fontSize: 12, opacity: 0.72 }}>
+                          Atual: {fmtNum(p.atual, 3)} {p.unidade || ""} → Novo: {fmtNum(p.novo, 3)} {p.unidade || ""}
+                        </div>
+                      </div>
+                      <span style={{ fontWeight: 700 }}>
+                        {fmtNum(p.novo - p.atual, 3)}
+                      </span>
+                      <button
+                        type="button"
+                        style={{ ...styles.button, ...styles.secondary, minHeight: 34, padding: "5px 9px" }}
+                        onClick={() => setInventarioEdicao(prev => ({ ...prev, [p.nome]: "" }))}
+                      >
+                        Retirar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div style={{ marginTop: 8 }}>
               <button style={styles.button} type="button" onClick={gravarInventarioMensal}>
-                ✅ Atualizar produtos preenchidos
+                ✅ Atualizar todos os produtos da lista
               </button>
             </div>
           </div>
