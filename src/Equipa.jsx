@@ -46,14 +46,73 @@ export default function Equipa({ onLogout }) {
     catch { return []; }
   });
 
+  const [areaEquipe, setAreaEquipe] = useState("saidas");
+  const [setorTemperaturas, setSetorTemperaturas] = useState("cozinha");
+  const [equipamentosTemperatura, setEquipamentosTemperatura] = useState([]);
+  const [temperaturas, setTemperaturas] = useState({});
+  const [responsavelTemperaturas, setResponsavelTemperaturas] = useState("");
+  const [aGuardarTemperaturas, setAGuardarTemperaturas] = useState(false);
+
   /* ===== FETCH PRODUTOS ===== */
   useEffect(() => {
     fetchProdutos();
+    fetchEquipamentosTemperatura();
   }, []);
 
   async function fetchProdutos() {
     const { data } = await supabase.from("produtos").select("*").order("nome");
     setProdutos(data || []);
+  }
+
+  async function fetchEquipamentosTemperatura() {
+    const { data, error } = await supabase
+      .from("equipamentos_temperatura")
+      .select("*")
+      .eq("ativo", true)
+      .order("setor")
+      .order("nome");
+    if (!error) setEquipamentosTemperatura(data || []);
+  }
+
+  async function guardarTemperaturas() {
+    const equipamentosSetor = equipamentosTemperatura.filter(e => e.setor === setorTemperaturas);
+    const itens = equipamentosSetor
+      .map(e => {
+        const raw = temperaturas[e.id];
+        if (raw === "" || raw === undefined || raw === null) return null;
+        const temperatura = Number(String(raw).replace(",", "."));
+        return Number.isFinite(temperatura) ? { equipamento_id: e.id, temperatura } : null;
+      })
+      .filter(Boolean);
+
+    if (!responsavelTemperaturas.trim()) {
+      alert("Indica o responsável.");
+      return;
+    }
+    if (!itens.length) {
+      alert("Introduz pelo menos uma temperatura.");
+      return;
+    }
+
+    setAGuardarTemperaturas(true);
+    const { error } = await supabase.rpc("equipa_registar_temperaturas", {
+      p_itens: itens,
+      p_responsavel: responsavelTemperaturas.trim()
+    });
+    setAGuardarTemperaturas(false);
+
+    if (error) {
+      console.error(error);
+      alert("Não foi possível guardar as temperaturas.");
+      return;
+    }
+
+    setTemperaturas(prev => {
+      const next = { ...prev };
+      itens.forEach(item => delete next[item.equipamento_id]);
+      return next;
+    });
+    alert(`Temperaturas registadas: ${itens.length} equipamento(s).`);
   }
 
   /* ===== AGRUPAR POR PROCEDÊNCIA ===== */
@@ -365,7 +424,70 @@ export default function Equipa({ onLogout }) {
         </button>
       </header>
 
-      <p className="operacao-muted">Pesquisa o produto, indica a quantidade e adiciona. No fim confirma todas as saídas de uma vez.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+        <button type="button" style={{ ...styles.button, ...(areaEquipe === "saidas" ? {} : styles.secondary) }} onClick={() => setAreaEquipe("saidas")}>➖ Saídas</button>
+        <button type="button" style={{ ...styles.button, ...(areaEquipe === "temperaturas" ? {} : styles.secondary) }} onClick={() => setAreaEquipe("temperaturas")}>🌡️ Temperaturas</button>
+      </div>
+
+      {areaEquipe === "temperaturas" ? (
+        <>
+          <div style={styles.card}>
+            <h3 className="operacao-section-title">🌡️ Registo de temperaturas</h3>
+            <p className="operacao-muted">Escolhe a área e regista apenas as temperaturas medidas.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+              <button type="button" style={{ ...styles.button, ...(setorTemperaturas === "cozinha" ? {} : styles.secondary) }} onClick={() => setSetorTemperaturas("cozinha")}>🍳 Cozinha</button>
+              <button type="button" style={{ ...styles.button, ...(setorTemperaturas === "atendimento" ? {} : styles.secondary) }} onClick={() => setSetorTemperaturas("atendimento")}>🛎️ Atendimento</button>
+            </div>
+
+            {equipamentosTemperatura.filter(e => e.setor === setorTemperaturas).length === 0 ? (
+              <p className="operacao-muted">Ainda não existem equipamentos configurados nesta área.</p>
+            ) : (
+              equipamentosTemperatura.filter(e => e.setor === setorTemperaturas).map(equipamento => {
+                const valor = temperaturas[equipamento.id] ?? "";
+                const n = Number(String(valor).replace(",", "."));
+                const fora = valor !== "" && Number.isFinite(n) && (
+                  (equipamento.temperatura_min !== null && n < Number(equipamento.temperatura_min)) ||
+                  (equipamento.temperatura_max !== null && n > Number(equipamento.temperatura_max))
+                );
+                return (
+                  <div key={equipamento.id} style={{ padding: "12px 0", borderBottom: "1px solid #e7eae3" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 120px", gap: 10, alignItems: "center" }}>
+                      <div>
+                        <strong>{equipamento.nome}</strong>
+                        <div style={{ fontSize: 12, opacity: 0.72 }}>
+                          Limites: {equipamento.temperatura_min ?? "—"} °C a {equipamento.temperatura_max ?? "—"} °C
+                        </div>
+                      </div>
+                      <input
+                        style={{ ...styles.input, width: "100%", textAlign: "center", ...(fora ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }}
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        placeholder="°C"
+                        value={valor}
+                        onChange={ev => setTemperaturas(prev => ({ ...prev, [equipamento.id]: ev.target.value }))}
+                      />
+                    </div>
+                    {fora && <div style={{ color: "#b42318", fontWeight: 700, marginTop: 5 }}>⚠ Fora do intervalo definido</div>}
+                  </div>
+                );
+              })
+            )}
+
+            <label style={{ display: "block", marginTop: 14 }}>
+              <strong>Responsável</strong>
+              <input style={{ ...styles.input, width: "100%", boxSizing: "border-box" }} value={responsavelTemperaturas} onChange={e => setResponsavelTemperaturas(e.target.value)} placeholder="Nome" />
+            </label>
+
+            <button type="button" style={{ ...styles.button, width: "100%", marginTop: 12 }} disabled={aGuardarTemperaturas} onClick={guardarTemperaturas}>
+              {aGuardarTemperaturas ? "A guardar…" : "✅ Guardar temperaturas"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="operacao-muted">Pesquisa o produto, indica a quantidade e adiciona. No fim confirma todas as saídas de uma vez.</p>
 
       <div style={styles.card}>
         <h3 className="operacao-section-title">⚡ Saída rápida</h3>
@@ -827,6 +949,8 @@ export default function Equipa({ onLogout }) {
         </button>
         {erroSaida && <p role="alert" style={{ color: "#b42318" }}>{erroSaida}</p>}
       </div>
+        </>
+      )}
     </div>
   );
 }
