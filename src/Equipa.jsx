@@ -51,6 +51,16 @@ export default function Equipa({ onLogout }) {
   const [equipamentosTemperatura, setEquipamentosTemperatura] = useState([]);
   const [temperaturas, setTemperaturas] = useState({});
   const [responsavelTemperaturas, setResponsavelTemperaturas] = useState("");
+  const [dataTemperaturas, setDataTemperaturas] = useState(() => {
+    const d = new Date();
+    const pad = v => String(v).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  });
+  const [horaTemperaturas, setHoraTemperaturas] = useState(() => {
+    const d = new Date();
+    const pad = v => String(v).padStart(2, "0");
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const [aGuardarTemperaturas, setAGuardarTemperaturas] = useState(false);
 
   /* ===== FETCH PRODUTOS ===== */
@@ -89,14 +99,33 @@ export default function Equipa({ onLogout }) {
       alert("Indica o responsável.");
       return;
     }
+    if (!dataTemperaturas || !horaTemperaturas) {
+      alert("Indica a data e a hora do registo.");
+      return;
+    }
     if (!itens.length) {
       alert("Introduz pelo menos uma temperatura.");
       return;
     }
 
+    const instante = new Date(`${dataTemperaturas}T${horaTemperaturas}:00`);
+    if (Number.isNaN(instante.getTime())) {
+      alert("Confirma a data e a hora.");
+      return;
+    }
+    if (instante.getTime() > Date.now()) {
+      alert("Não é possível registar uma data/hora futura.");
+      return;
+    }
+
+    const itensComData = itens.map(item => ({
+      ...item,
+      registado_em: `${dataTemperaturas}T${horaTemperaturas}:00`
+    }));
+
     setAGuardarTemperaturas(true);
     const { error } = await supabase.rpc("equipa_registar_temperaturas", {
-      p_itens: itens,
+      p_itens: itensComData,
       p_responsavel: responsavelTemperaturas.trim()
     });
     setAGuardarTemperaturas(false);
@@ -474,6 +503,33 @@ export default function Equipa({ onLogout }) {
                 );
               })
             )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
+              <label>
+                <strong>Data</strong>
+                <input
+                  style={{ ...styles.input, width: "100%", boxSizing: "border-box" }}
+                  type="date"
+                  value={dataTemperaturas}
+                  max={(() => {
+                    const d = new Date();
+                    const pad = v => String(v).padStart(2, "0");
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                  })()}
+                  onChange={e => setDataTemperaturas(e.target.value)}
+                />
+              </label>
+
+              <label>
+                <strong>Hora</strong>
+                <input
+                  style={{ ...styles.input, width: "100%", boxSizing: "border-box" }}
+                  type="time"
+                  value={horaTemperaturas}
+                  onChange={e => setHoraTemperaturas(e.target.value)}
+                />
+              </label>
+            </div>
 
             <label style={{ display: "block", marginTop: 14 }}>
               <strong>Responsável</strong>
