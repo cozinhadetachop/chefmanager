@@ -150,8 +150,10 @@ export default function Gerente({ onLogout }) {
   const [entradaNova, setEntradaNova] = useState({
     produto: "",
     quantidade: "",
-    datahora: new Date().toISOString()
+    precoUnit: "",
+    codigoArtigo: ""
   });
+  const [entradasProvisorias, setEntradasProvisorias] = useState([]);
   const [pesquisaEntrada, setPesquisaEntrada] = useState("");
 
   /* ✅ ENTRADA POR FOTOGRAFIA / FATURA */
@@ -196,6 +198,83 @@ export default function Gerente({ onLogout }) {
     const n = Number(String(valor ?? "").replace(",", "."));
     return Number.isFinite(n) ? n : NaN;
   }
+  function adicionarEntradaProvisoria(item) {
+    setEntradasProvisorias(lista => {
+      const existente = lista.find(linha => linha.produto === item.produto);
+      if (!existente) return [...lista, { ...item, id: item.id || `${Date.now()}-${Math.random().toString(36).slice(2)}` }];
+      return lista.map(linha => linha.produto === item.produto
+        ? {
+            ...linha,
+            quantidade: Number(linha.quantidade) + Number(item.quantidade),
+            ...(item.precoUnit !== "" && item.precoUnit !== undefined ? { precoUnit: item.precoUnit } : {}),
+            ...(item.codigoArtigo ? { codigoArtigo: item.codigoArtigo } : {})
+          }
+        : linha
+      );
+    });
+  }
+
+  function adicionarEntradaManualGerente(event) {
+    event.preventDefault();
+    const produto = produtos.find(p => p.nome === entradaNova.produto);
+    const quantidade = numeroEntrada(entradaNova.quantidade);
+    const precoUnit = entradaNova.precoUnit === "" ? "" : numeroEntrada(entradaNova.precoUnit);
+
+    if (!produto || !Number.isFinite(quantidade) || quantidade <= 0) {
+      alert("Seleciona um produto e indica uma quantidade válida.");
+      return;
+    }
+    if (entradaNova.precoUnit !== "" && (!Number.isFinite(precoUnit) || precoUnit < 0)) {
+      alert("Indica um valor unitário válido.");
+      return;
+    }
+
+    adicionarEntradaProvisoria({
+      produto: produto.nome,
+      quantidade,
+      precoUnit,
+      codigoArtigo: String(entradaNova.codigoArtigo || "").trim()
+    });
+    setEntradaNova({ produto: "", quantidade: "", precoUnit: "", codigoArtigo: "" });
+    setPesquisaEntrada("");
+  }
+
+  async function confirmarEntradasGerente() {
+    if (!entradasProvisorias.length) return;
+    if (!window.confirm(`Confirmar ${entradasProvisorias.length} entrada(s) de stock?`)) return;
+
+    setARegistarFaturaEntrada(true);
+    const agora = new Date().toISOString();
+    const payload = entradasProvisorias.map(item => {
+      const preco = item.precoUnit === "" || item.precoUnit === undefined ? null : Number(item.precoUnit);
+      return {
+        produto: item.produto,
+        quantidade: Number(item.quantidade),
+        unidade: produtos.find(p => p.nome === item.produto)?.unidade || null,
+        precoUnit: preco,
+        precoTotal: preco === null ? null : Number(item.quantidade) * preco,
+        codigo_artigo: item.codigoArtigo || null,
+        datahora: agora,
+        responsavel: "Gerente"
+      };
+    });
+
+    const { error } = await supabase.from("entradas").insert(payload);
+    setARegistarFaturaEntrada(false);
+    if (error) {
+      mostrarErro("Não foi possível registar as entradas", error);
+      return;
+    }
+
+    setEntradasProvisorias([]);
+    setFotografiasEntrada([]);
+    setLinhasFaturaEntrada([]);
+    setProgressoFaturaEntrada(0);
+    await fetchTudo();
+    alert("Entradas registadas com sucesso.");
+  }
+
+
 
   function juntarFotografiasEntrada(event) {
     const novas = Array.from(event.target.files || []).filter(file => file.type.startsWith("image/"));
@@ -228,7 +307,7 @@ export default function Gerente({ onLogout }) {
     setLinhasFaturaEntrada(linhas => linhas.map(linha => linha.id === id ? { ...linha, [campo]: valor } : linha));
   }
 
-  async function registarEntradasDaFatura() {
+  function registarEntradasDaFatura() {
     const pendentes = linhasFaturaEntrada.filter(
       linha => !linha.ignorar && (!linha.produto || !(numeroEntrada(linha.quantidade) > 0))
     );
@@ -241,32 +320,22 @@ export default function Gerente({ onLogout }) {
       linha => !linha.ignorar && linha.produto && numeroEntrada(linha.quantidade) > 0
     );
     if (!validas.length) {
-      alert("Não existem linhas válidas para registar.");
-      return;
-    }
-    if (!window.confirm(`Confirmar ${validas.length} entrada(s) de stock a partir da fatura?`)) return;
-
-    setARegistarFaturaEntrada(true);
-    const agora = new Date().toISOString();
-    const payload = validas.map(linha => ({
-      produto: linha.produto,
-      quantidade: numeroEntrada(linha.quantidade),
-      datahora: agora
-    }));
-    const { error } = await supabase.from("entradas").insert(payload);
-    setARegistarFaturaEntrada(false);
-
-    if (error) {
-      mostrarErro("Não foi possível registar as entradas da fatura", error);
+      alert("Não existem linhas válidas para adicionar.");
       return;
     }
 
-    setFotografiasEntrada([]);
+    validas.forEach(linha => {
+      adicionarEntradaProvisoria({
+        produto: linha.produto,
+        quantidade: numeroEntrada(linha.quantidade),
+        precoUnit: linha.precoFatura === "" || linha.precoFatura === undefined ? "" : numeroEntrada(linha.precoFatura),
+        codigoArtigo: String(linha.codigoArtigo || "").trim()
+      });
+    });
+
     setLinhasFaturaEntrada([]);
+    setFotografiasEntrada([]);
     setProgressoFaturaEntrada(0);
-    setPesquisaEntrada("");
-    await fetchTudo();
-    alert("Entradas da fatura registadas com sucesso.");
   }
 
   /* ===== FETCH ===== */
@@ -884,7 +953,7 @@ export default function Gerente({ onLogout }) {
 
       <nav className="operacao-nav" aria-label="Secções do Gerente">
         {[
-          ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"], ["saidas", "➖ Saídas"], ["fatura", "📷 Fatura"],
+          ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"], ["saidas", "➖ Saídas"],
           ["inventario", "🧾 Inventário"], ["produtos", "📦 Produtos"],
           ["historico", "📜 Histórico"]
         ].map(([id, titulo]) => (
@@ -1367,74 +1436,142 @@ export default function Gerente({ onLogout }) {
       </>}
 
       {area === "movimentos" && <>
-      {/* ===== ENTRADA DE STOCK ===== */}
       <div style={styles.card}>
-      <h3 className="operacao-section-title">➕ Entrada de stock</h3>
-      <form className="operacao-form"
-        onSubmit={async e => {
-          e.preventDefault();
+        <h3 className="operacao-section-title">➕ Registar entrada</h3>
 
-          const payload = {
-            ...entradaNova,
-            quantidade: Number(String(entradaNova.quantidade).replace(",", ".")),
-            datahora: new Date().toISOString()
-          };
+        <h4 style={{ margin: "14px 0 10px" }}>Adicionar manualmente</h4>
+        <form className="operacao-form" onSubmit={adicionarEntradaManualGerente}>
+          <label>
+            <span style={{ display: "block", marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Produto</span>
+            <input
+              style={styles.input}
+              type="search"
+              placeholder="Pesquisar produto…"
+              value={pesquisaEntrada}
+              onChange={e => setPesquisaEntrada(e.target.value)}
+            />
+            <select
+              style={{ ...styles.input, marginTop: 6 }}
+              value={entradaNova.produto}
+              onChange={e => setEntradaNova({ ...entradaNova, produto: e.target.value })}
+              required
+            >
+              <option value="">Selecionar produto…</option>
+              {produtosEntradaFiltrados.map(p => (
+                <option key={p.nome} value={p.nome}>{p.nome} ({p.unidade})</option>
+              ))}
+            </select>
+          </label>
 
-          if (!Number.isFinite(payload.quantidade) || payload.quantidade <= 0) {
-            alert("Indica uma quantidade superior a zero.");
-            return;
-          }
+          <label>
+            <span style={{ display: "block", marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Quantidade</span>
+            <input style={styles.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={entradaNova.quantidade} onChange={e => setEntradaNova({ ...entradaNova, quantidade: e.target.value })} required />
+          </label>
 
-          const { error } = await supabase.from("entradas").insert([payload]);
-          if (error) {
-            mostrarErro("Não foi possível registar a entrada de stock", error);
-            return;
-          }
+          <label>
+            <span style={{ display: "block", marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Valor unitário (€)</span>
+            <input style={styles.input} type="number" inputMode="decimal" min="0" step="0.0001" value={entradaNova.precoUnit} onChange={e => setEntradaNova({ ...entradaNova, precoUnit: e.target.value })} placeholder="Opcional" />
+          </label>
 
-          setEntradaNova({ produto: "", quantidade: "", datahora: new Date().toISOString() });
-          setPesquisaEntrada("");
-          await fetchTudo();
-        }}
-      >
-        <input
-          style={styles.input}
-          type="search"
-          placeholder="Pesquisar produto…"
-          aria-label="Pesquisar produto para entrada de stock"
-          value={pesquisaEntrada}
-          onChange={e => setPesquisaEntrada(e.target.value)}
-        />
-        <select
-          style={styles.input}
-          value={entradaNova.produto}
-          onChange={e => setEntradaNova({ ...entradaNova, produto: e.target.value })}
-          required
-        >
-          <option value="">Produto</option>
-          {produtosEntradaFiltrados.map(p => (
-            <option key={p.nome} value={p.nome}>
-              {p.nome} ({p.unidade})
-            </option>
-          ))}
-        </select>
-        {!!pesquisaEntrada && !produtosEntradaFiltrados.length && (
-          <div style={{ marginBottom: 8, color: "#666" }}>Nenhum produto encontrado.</div>
-        )}
+          <label>
+            <span style={{ display: "block", marginBottom: 5, fontSize: 13, fontWeight: 700 }}>N.º artigo</span>
+            <input style={styles.input} type="text" value={entradaNova.codigoArtigo} onChange={e => setEntradaNova({ ...entradaNova, codigoArtigo: e.target.value })} placeholder="Código do fornecedor" />
+          </label>
 
-        <input
-          style={styles.input}
-          type="number"
-          step="0.001"
-          placeholder="Quantidade"
-          value={entradaNova.quantidade}
-          onChange={e => setEntradaNova({ ...entradaNova, quantidade: e.target.value })}
-          required
-        />
-        <button style={styles.button}>Registar</button>
-      </form>
+          <button style={styles.button}>Adicionar</button>
+        </form>
       </div>
 
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">Adicionar através de fotografias da fatura</h3>
+        <p className="operacao-muted">Podes adicionar várias fotografias. Serão usadas apenas para a leitura e não ficam guardadas.</p>
+        <input type="file" accept="image/*" capture="environment" multiple onChange={juntarFotografiasEntrada} />
 
+        {fotografiasEntrada.map((foto, indice) => (
+          <div key={`${foto.name}-${indice}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 0" }}>
+            <span>Fotografia {indice + 1}: {foto.name}</span>
+            <button type="button" style={{ ...styles.button, ...styles.secondary }} onClick={() => setFotografiasEntrada(lista => lista.filter((_, i) => i !== indice))}>Retirar</button>
+          </div>
+        ))}
+
+        {!!fotografiasEntrada.length && (
+          <button type="button" style={{ ...styles.button, marginTop: 10 }} disabled={aLerFaturaEntrada} onClick={lerFaturaEntrada}>
+            {aLerFaturaEntrada ? `A ler… ${Math.round(progressoFaturaEntrada * 100)}%` : `Ler ${fotografiasEntrada.length} fotografia(s)`}
+          </button>
+        )}
+        {aLerFaturaEntrada && <progress style={{ width: "100%", marginTop: 10 }} max="1" value={progressoFaturaEntrada} />}
+      </div>
+
+      {!!linhasFaturaEntrada.length && (
+        <div style={styles.card}>
+          <h3 className="operacao-section-title">Validar leitura da fatura</h3>
+          <div style={{ padding: 12, borderRadius: 10, background: "#fff8e1", color: "#684f00", marginBottom: 10 }}>
+            Compara todas as linhas com a fatura antes de confirmar. Confirma produto, quantidade e unidade do stock; embalagens podem exigir conversão. O valor unitário e o número do artigo podem ser corrigidos antes de adicionar.
+          </div>
+
+          {linhasFaturaEntrada.map(linha => (
+            <div key={linha.id} style={{ padding: "14px 0", borderBottom: "1px solid #d9ddd4" }}>
+              <div style={{ fontSize: 13, color: "#667064", marginBottom: 8 }}>Foto {linha.foto}: {linha.descricao}</div>
+              <div className="operacao-form">
+                <select style={styles.input} value={linha.produto || ""} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "produto", e.target.value)}>
+                  <option value="">Selecionar produto…</option>
+                  {produtos.map(p => <option key={p.nome} value={p.nome}>{p.nome} ({p.unidade})</option>)}
+                </select>
+                <input style={styles.input} type="number" inputMode="decimal" min="0.001" step="0.001" placeholder="Quantidade" value={linha.quantidade} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "quantidade", e.target.value)} />
+                <input style={styles.input} type="number" inputMode="decimal" min="0" step="0.0001" placeholder="Valor unitário (€)" value={linha.precoFatura ?? ""} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "precoFatura", e.target.value)} />
+                <input style={styles.input} type="text" placeholder="N.º artigo" value={linha.codigoArtigo ?? ""} onChange={e => atualizarLinhaFaturaEntrada(linha.id, "codigoArtigo", e.target.value)} />
+                <button type="button" style={{ ...styles.button, ...styles.danger }} onClick={() => setLinhasFaturaEntrada(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
+              </div>
+            </div>
+          ))}
+
+          <button type="button" style={{ ...styles.button, width: "100%", marginTop: 12 }} onClick={registarEntradasDaFatura}>
+            Validar e adicionar à lista provisória
+          </button>
+        </div>
+      )}
+
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">Lista provisória</h3>
+        {!entradasProvisorias.length ? (
+          <p className="operacao-muted">Ainda não foram adicionados produtos.</p>
+        ) : (
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Produto</th>
+                    <th style={styles.th}>Quantidade</th>
+                    <th style={styles.th}>Valor unit.</th>
+                    <th style={styles.th}>N.º artigo</th>
+                    <th style={styles.th}>Remover</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entradasProvisorias.map(linha => {
+                    const produto = produtos.find(p => p.nome === linha.produto);
+                    return (
+                      <tr key={linha.id}>
+                        <td style={styles.td}>{linha.produto}<div style={{ fontSize: 12, opacity: 0.7 }}>{produto?.unidade || ""}</div></td>
+                        <td style={styles.td}>{fmtNum(linha.quantidade, 3)}</td>
+                        <td style={styles.td}>{linha.precoUnit === "" || linha.precoUnit === undefined ? "—" : Number(linha.precoUnit).toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</td>
+                        <td style={styles.td}>{linha.codigoArtigo || "—"}</td>
+                        <td style={styles.td}>
+                          <button type="button" style={{ ...styles.button, ...styles.danger }} onClick={() => setEntradasProvisorias(lista => lista.filter(item => item.id !== linha.id))}>Retirar</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <button type="button" style={{ ...styles.button, width: "100%", marginTop: 12 }} disabled={aRegistarFaturaEntrada} onClick={confirmarEntradasGerente}>
+              {aRegistarFaturaEntrada ? "A guardar…" : "Confirmar entradas"}
+            </button>
+          </>
+        )}
+      </div>
       </>}
 
       {area === "produtos" && <>
