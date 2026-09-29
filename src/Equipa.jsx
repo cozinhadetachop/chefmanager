@@ -35,7 +35,8 @@ export default function Equipa({ onLogout }) {
   /* ✅ UI (igual ao gerente) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
   const [procedenciasAbertas, setProcedenciasAbertas] = useState({}); // { "Makro": true, ... }
-  const [mostrarProdutos, setMostrarProdutos] = useState(false);
+  const [mostrarProdutos, setMostrarProdutos] = useState(true);
+  const [mostrarOutrasOpcoes, setMostrarOutrasOpcoes] = useState(false);
   const [favoritos, setFavoritos] = useState(() => {
     try { return JSON.parse(window.localStorage.getItem("equipa-favoritos") || "[]"); }
     catch { return []; }
@@ -364,10 +365,149 @@ export default function Equipa({ onLogout }) {
         </button>
       </header>
 
-      <p className="operacao-muted">1. Faz a lista · 2. Revê o que foi lido · 3. Confirma as saídas.</p>
+      <p className="operacao-muted">Pesquisa o produto, indica a quantidade e adiciona. No fim confirma todas as saídas de uma vez.</p>
 
       <div style={styles.card}>
-        <h3 className="operacao-section-title">⚡ Saída rápida por lista</h3>
+        <h3 className="operacao-section-title">⚡ Saída rápida</h3>
+
+        {(favoritos.length > 0 || recentes.length > 0) && (
+          <div style={{ marginBottom: 12 }}>
+            {favoritos.length > 0 && (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>⭐ Favoritos</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: recentes.length ? 10 : 0 }}>
+                  {favoritos.map(nome => (
+                    <button
+                      key={`fav-rapido-${nome}`}
+                      type="button"
+                      style={{ ...styles.button, ...styles.secondary, minHeight: 38, padding: "7px 10px" }}
+                      onClick={() => setPesquisaProduto(nome)}
+                    >
+                      {nome}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {recentes.length > 0 && (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🕘 Recentes</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  {recentes.map(nome => (
+                    <button
+                      key={`rec-rapido-${nome}`}
+                      type="button"
+                      style={{ ...styles.button, ...styles.secondary, minHeight: 38, padding: "7px 10px" }}
+                      onClick={() => setPesquisaProduto(nome)}
+                    >
+                      {nome}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        <input
+          style={{ ...styles.input, width: "100%", fontSize: 18, minHeight: 52 }}
+          type="search"
+          aria-label="Pesquisar produto para saída"
+          placeholder="🔎 Pesquisar produto…"
+          value={pesquisaProduto}
+          onChange={e => setPesquisaProduto(e.target.value)}
+          autoComplete="off"
+        />
+
+        {pesquisaProduto.trim() && (
+          <div style={{ marginTop: 10 }}>
+            {produtos
+              .filter(p => (p.nome || "").toLowerCase().includes(pesquisaProduto.trim().toLowerCase()))
+              .slice(0, 8)
+              .map(p => (
+                <div
+                  key={`rapido-${p.id}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) 100px auto",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "10px 0",
+                    borderBottom: "1px solid #e7eae3"
+                  }}
+                >
+                  <div>
+                    <strong>{p.nome}</strong>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>{p.unidade || ""}</div>
+                  </div>
+
+                  <input
+                    style={{ ...styles.input, textAlign: "center" }}
+                    type="number"
+                    inputMode="decimal"
+                    min="0.001"
+                    step="0.001"
+                    placeholder="Qtd"
+                    value={quantidades[p.id] || ""}
+                    onChange={e => setQuantidades(prev => ({ ...prev, [p.id]: e.target.value }))}
+                  />
+
+                  <button
+                    style={styles.button}
+                    type="button"
+                    onClick={() => {
+                      const qtd = Number(String(quantidades[p.id] || "").replace(",", "."));
+                      if (!qtd || qtd <= 0) {
+                        alert("Indica a quantidade.");
+                        return;
+                      }
+
+                      adicionarSaidaProvisoria({
+                        produto: p.nome,
+                        quantidade: qtd,
+                        unidade: p.unidade,
+                        setor: "Cozinha",
+                        dataHora: new Date().toISOString()
+                      });
+
+                      setQuantidades(prev => ({ ...prev, [p.id]: "" }));
+                      setPesquisaProduto("");
+                    }}
+                  >
+                    + Adicionar
+                  </button>
+                </div>
+              ))}
+
+            {!produtos.some(p => (p.nome || "").toLowerCase().includes(pesquisaProduto.trim().toLowerCase())) && (
+              <p className="operacao-muted">Nenhum produto encontrado.</p>
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          style={{ ...styles.button, ...styles.secondary, width: "100%", marginTop: 12 }}
+          onClick={() => setMostrarProdutos(valor => !valor)}
+        >
+          {mostrarProdutos ? "▲ Esconder lista completa de produtos" : "▼ Ver lista completa de produtos"}
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <button
+          type="button"
+          style={{ ...styles.button, ...styles.secondary, width: "100%" }}
+          onClick={() => setMostrarOutrasOpcoes(valor => !valor)}
+        >
+          {mostrarOutrasOpcoes ? "▲ Esconder outras opções" : "▼ Outras opções: lista escrita, voz ou fotografia"}
+        </button>
+      </div>
+
+      {mostrarOutrasOpcoes && (
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">Outras formas de registo</h3>
         <p className="operacao-muted">
           Escreve uma linha por produto, tira uma fotografia ou usa o microfone. Ao ditar, diz por exemplo:
           <strong> “Arroz dois, batata cinco, frango três”</strong>. Ao parar, aparece automaticamente a lista para revisão.
@@ -423,6 +563,7 @@ export default function Equipa({ onLogout }) {
         )}
         {aLerFotografias && <progress style={{ width: "100%", marginTop: 8 }} max="1" value={progressoFotografias} />}
       </div>
+      )}
 
       {!!linhasImportadas.length && (
         <div style={styles.card}>
@@ -483,58 +624,9 @@ export default function Equipa({ onLogout }) {
         </div>
       )}
 
-      <div style={{ margin: "18px 0 10px" }}>
-        <button
-          type="button"
-          style={{ ...styles.button, ...styles.secondary, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-          onClick={() => {
-            setMostrarProdutos(valor => {
-              const novo = !valor;
-              if (!novo) {
-                setPesquisaProduto("");
-                fecharTudoProcedencias();
-              }
-              return novo;
-            });
-          }}
-          aria-expanded={mostrarProdutos}
-        >
-          <span>📦 Produtos</span>
-          <span>{mostrarProdutos ? "▲ Esconder" : "▼ Mostrar"}</span>
-        </button>
-      </div>
-
       {mostrarProdutos && (
         <>
-          {(favoritos.length > 0 || recentes.length > 0) && (
-            <div style={styles.card}>
-              {favoritos.length > 0 && (
-                <>
-                  <h3 className="operacao-section-title">⭐ Favoritos</h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: recentes.length ? 14 : 0 }}>
-                    {favoritos.map(nome => (
-                      <button key={nome} type="button" style={{ ...styles.button, ...styles.secondary, minHeight: 38, padding: "7px 10px" }} onClick={() => setPesquisaProduto(nome)}>
-                        {nome}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {recentes.length > 0 && (
-                <>
-                  <h3 className="operacao-section-title">🕘 Recentes</h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {recentes.map(nome => (
-                      <button key={nome} type="button" style={{ ...styles.button, ...styles.secondary, minHeight: 38, padding: "7px 10px" }} onClick={() => setPesquisaProduto(nome)}>
-                        {nome}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-      {/* ✅ Pesquisa + abrir/fechar tudo (igual ao gerente) */}
+                {/* ✅ Pesquisa + abrir/fechar tudo (igual ao gerente) */}
       <div className="operacao-tools" style={styles.card}>
         <input
           style={styles.input}
