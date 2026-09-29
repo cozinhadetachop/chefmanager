@@ -104,7 +104,7 @@ export default function Chef({ onLogout }) {
   const [aCarregar, setACarregar] = useState(true);
   const [erro, setErro] = useState("");
 
-  const [entradaManual, setEntradaManual] = useState({ produto: "", quantidade: "" });
+  const [entradaManual, setEntradaManual] = useState({ produto: "", quantidade: "", precoUnit: "", codigoArtigo: "" });
   const [entradas, setEntradas] = useState([]);
   const [saidaManual, setSaidaManual] = useState({ produto: "", quantidade: "" });
   const [saidas, setSaidas] = useState([]);
@@ -197,7 +197,12 @@ export default function Chef({ onLogout }) {
       const existente = lista.find(linha => linha.produto === item.produto);
       if (!existente) return [...lista, item];
       return lista.map(linha => linha.produto === item.produto
-        ? { ...linha, quantidade: Number(linha.quantidade) + Number(item.quantidade) }
+        ? {
+            ...linha,
+            quantidade: Number(linha.quantidade) + Number(item.quantidade),
+            ...(item.precoUnit !== undefined && item.precoUnit !== "" ? { precoUnit: item.precoUnit } : {}),
+            ...(item.codigoArtigo !== undefined && item.codigoArtigo !== "" ? { codigoArtigo: item.codigoArtigo } : {})
+          }
         : linha
       );
     });
@@ -212,8 +217,20 @@ export default function Chef({ onLogout }) {
       alert("Seleciona um produto e indica uma quantidade válida.");
       return;
     }
-    adicionarOuSomar(setEntradas, { id: idLinha(), produto: produto.nome, quantidade, precoFatura: "" });
-    setEntradaManual({ produto: "", quantidade: "" });
+    const precoUnit = entradaManual.precoUnit === "" ? "" : numero(entradaManual.precoUnit);
+    if (entradaManual.precoUnit !== "" && (!Number.isFinite(precoUnit) || precoUnit < 0)) {
+      alert("Indica um valor unitário válido.");
+      return;
+    }
+
+    adicionarOuSomar(setEntradas, {
+      id: idLinha(),
+      produto: produto.nome,
+      quantidade,
+      precoUnit,
+      codigoArtigo: entradaManual.codigoArtigo.trim()
+    });
+    setEntradaManual({ produto: "", quantidade: "", precoUnit: "", codigoArtigo: "" });
   }
 
   function adicionarSaidaManual(event) {
@@ -233,7 +250,12 @@ export default function Chef({ onLogout }) {
     if (!entradas.length) return;
     if (!window.confirm(`Confirmar ${entradas.length} entrada(s) de stock?`)) return;
     setAGuardar(true);
-    const movimentos = entradas.map(item => ({ produto: item.produto, quantidade: Number(item.quantidade) }));
+    const movimentos = entradas.map(item => ({
+      produto: item.produto,
+      quantidade: Number(item.quantidade),
+      precoUnit: item.precoUnit === "" || item.precoUnit === undefined ? null : Number(item.precoUnit),
+      codigoArtigo: item.codigoArtigo || null
+    }));
     const { error } = await supabase.rpc("chef_registar_entradas", { p_movimentos: movimentos });
     setAGuardar(false);
     if (error) {
@@ -313,14 +335,17 @@ export default function Chef({ onLogout }) {
         if (indice >= 0) {
           resultado[indice] = {
             ...resultado[indice],
-            quantidade: Number(resultado[indice].quantidade) + quantidade
+            quantidade: Number(resultado[indice].quantidade) + quantidade,
+            ...(linha.precoFatura !== "" ? { precoUnit: numero(linha.precoFatura) } : {}),
+            ...(linha.codigoArtigo ? { codigoArtigo: linha.codigoArtigo } : {})
           };
         } else {
           resultado.push({
             id: idLinha(),
             produto: linha.produto,
             quantidade,
-            precoFatura: ""
+            precoUnit: linha.precoFatura === "" ? "" : numero(linha.precoFatura),
+            codigoArtigo: linha.codigoArtigo || ""
           });
         }
       });
@@ -395,7 +420,7 @@ export default function Chef({ onLogout }) {
       <>
         <div style={estilos.tabelaWrap}>
           <table style={estilos.tabela}>
-            <thead><tr><th style={estilos.th}>Produto</th><th style={{ ...estilos.th, ...estilos.direita }}>Quantidade</th><th style={estilos.th}>Remover</th></tr></thead>
+            <thead><tr><th style={estilos.th}>Produto</th><th style={{ ...estilos.th, ...estilos.direita }}>Quantidade</th>{tipo === "entrada" && <th style={{ ...estilos.th, ...estilos.direita }}>Valor unit.</th>}{tipo === "entrada" && <th style={estilos.th}>N.º artigo</th>}<th style={estilos.th}>Remover</th></tr></thead>
             <tbody>
               {linhas.map(linha => {
                 const produto = produtos.find(p => p.nome === linha.produto);
@@ -403,6 +428,8 @@ export default function Chef({ onLogout }) {
                   <tr key={linha.id}>
                     <td style={estilos.td}>{linha.produto}<div style={estilos.subtitulo}>{produto?.unidade}</div></td>
                     <td style={{ ...estilos.td, ...estilos.direita }}>{formatarNumero(linha.quantidade)}</td>
+                    {tipo === "entrada" && <td style={{ ...estilos.td, ...estilos.direita }}>{linha.precoUnit === "" || linha.precoUnit === undefined ? "—" : formatarPreco(linha.precoUnit)}</td>}
+                    {tipo === "entrada" && <td style={estilos.td}>{linha.codigoArtigo || "—"}</td>}
                     <td style={estilos.td}><button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => remover(linha.id)}>Retirar</button></td>
                   </tr>
                 );
@@ -579,6 +606,8 @@ export default function Chef({ onLogout }) {
               <form style={estilos.formLinha} onSubmit={adicionarEntradaManual}>
                 <label><span style={estilos.etiqueta}>Produto</span><SeletorProduto produtos={produtos} id="entrada-produto" value={entradaManual.produto} onChange={e => setEntradaManual({ ...entradaManual, produto: e.target.value })} /></label>
                 <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={entradaManual.quantidade} onChange={e => setEntradaManual({ ...entradaManual, quantidade: e.target.value })} required /></label>
+                <label><span style={estilos.etiqueta}>Valor unitário (€)</span><input style={estilos.input} type="number" inputMode="decimal" min="0" step="0.0001" value={entradaManual.precoUnit} onChange={e => setEntradaManual({ ...entradaManual, precoUnit: e.target.value })} placeholder="Opcional" /></label>
+                <label><span style={estilos.etiqueta}>N.º artigo</span><input style={estilos.input} type="text" value={entradaManual.codigoArtigo} onChange={e => setEntradaManual({ ...entradaManual, codigoArtigo: e.target.value })} placeholder="Código do fornecedor" /></label>
                 <button
                   type="button"
                   style={estilos.secundario}
@@ -603,7 +632,7 @@ export default function Chef({ onLogout }) {
             {!!linhasFatura.length && (
               <section style={estilos.card}>
                 <h3 style={{ marginTop: 0 }}>Validar leitura da fatura</h3>
-                <div style={estilos.nota}>Compara todas as linhas com a fatura antes de confirmar. Confirma produto, quantidade e unidade do stock; embalagens podem exigir conversão (por exemplo, 3 garrafas de 5 L = 15 L). Se faltar algum artigo, adiciona-o manualmente. O preço é só para comparação e não será guardado.</div>
+                <div style={estilos.nota}>Compara todas as linhas com a fatura antes de confirmar. Confirma produto, quantidade e unidade do stock; embalagens podem exigir conversão (por exemplo, 3 garrafas de 5 L = 15 L). Se faltar algum artigo, adiciona-o manualmente. O valor unitário e o número do artigo podem ser corrigidos antes de adicionar e ficam associados à entrada para validação do Gerente.</div>
                 {linhasFatura.map(linha => {
                   const produto = produtos.find(p => p.nome === linha.produto);
                   return (
@@ -612,6 +641,8 @@ export default function Chef({ onLogout }) {
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, alignItems: "end" }}>
                         <label><span style={estilos.etiqueta}>Produto existente</span><SeletorProduto produtos={produtos} value={linha.produto} onChange={e => atualizarLinhaFatura(linha.id, "produto", e.target.value)} /></label>
                         <label><span style={estilos.etiqueta}>Quantidade</span><input style={estilos.input} type="number" inputMode="decimal" min="0.001" step="0.001" value={linha.quantidade} onChange={e => atualizarLinhaFatura(linha.id, "quantidade", e.target.value)} /></label>
+                        <label><span style={estilos.etiqueta}>Valor unitário (€)</span><input style={estilos.input} type="number" inputMode="decimal" min="0" step="0.0001" value={linha.precoFatura ?? ""} onChange={e => atualizarLinhaFatura(linha.id, "precoFatura", e.target.value)} placeholder="Opcional" /></label>
+                        <label><span style={estilos.etiqueta}>N.º artigo</span><input style={estilos.input} type="text" value={linha.codigoArtigo ?? ""} onChange={e => atualizarLinhaFatura(linha.id, "codigoArtigo", e.target.value)} placeholder="Código do fornecedor" /></label>
                         <button type="button" style={{ ...estilos.secundario, ...estilos.perigo }} onClick={() => setLinhasFatura(lista => lista.filter(item => item.id !== linha.id))}>Remover</button>
                       </div>
                     </div>
