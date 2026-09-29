@@ -485,18 +485,44 @@ export default function Equipa({ onLogout }) {
                       <div>
                         <strong>{equipamento.nome}</strong>
                         <div style={{ fontSize: 12, opacity: 0.72 }}>
-                          Limites: {equipamento.temperatura_min ?? "—"} °C a {equipamento.temperatura_max ?? "—"} °C
+                          {equipamento.temperatura_min !== null && equipamento.temperatura_max !== null
+                            ? `Limites: ${equipamento.temperatura_min} °C a ${equipamento.temperatura_max} °C`
+                            : equipamento.temperatura_min !== null
+                              ? `Mínimo: ≥ ${equipamento.temperatura_min} °C`
+                              : equipamento.temperatura_max !== null
+                                ? `Máximo: ≤ ${equipamento.temperatura_max} °C`
+                                : "Sem limites definidos"}
                         </div>
                       </div>
-                      <input
-                        style={{ ...styles.input, width: "100%", textAlign: "center", ...(fora ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }}
-                        type="number"
-                        inputMode="decimal"
-                        step="0.1"
-                        placeholder="°C"
-                        value={valor}
-                        onChange={ev => setTemperaturas(prev => ({ ...prev, [equipamento.id]: ev.target.value }))}
-                      />
+                      <div style={{ display: "grid", gridTemplateColumns: equipamento.temperatura_max !== null && Number(equipamento.temperatura_max) < 0 ? "44px 1fr" : "1fr", gap: 6 }}>
+                        {equipamento.temperatura_max !== null && Number(equipamento.temperatura_max) < 0 && (
+                          <button
+                            type="button"
+                            style={{ ...styles.button, ...styles.secondary, padding: "8px 6px", minHeight: 46, fontSize: 22 }}
+                            title="Adicionar sinal negativo"
+                            onClick={() => setTemperaturas(prev => {
+                              const atual = String(prev[equipamento.id] ?? "");
+                              const semSinal = atual.replace(/^[-+]/, "");
+                              return { ...prev, [equipamento.id]: semSinal ? `-${semSinal}` : "-" };
+                            })}
+                          >
+                            −
+                          </button>
+                        )}
+                        <input
+                          style={{ ...styles.input, width: "100%", textAlign: "center", ...(fora ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }}
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={equipamento.temperatura_max !== null && Number(equipamento.temperatura_max) < 0 ? "-18 °C" : "°C"}
+                          value={valor}
+                          onChange={ev => {
+                            const novo = ev.target.value.replace(",", ".");
+                            if (/^-?\d*(?:\.\d*)?$/.test(novo)) {
+                              setTemperaturas(prev => ({ ...prev, [equipamento.id]: novo }));
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                     {fora && <div style={{ color: "#b42318", fontWeight: 700, marginTop: 5 }}>⚠ Fora do intervalo definido</div>}
                   </div>
