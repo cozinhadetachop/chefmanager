@@ -131,6 +131,16 @@ export default function Gerente({ onLogout }) {
   const [produtoAberto, setProdutoAberto] = useState(null);
   const [area, setArea] = useState("stock");
 
+  const [equipamentosTemperatura, setEquipamentosTemperatura] = useState([]);
+  const [registosTemperatura, setRegistosTemperatura] = useState([]);
+  const [equipamentoTemperaturaNovo, setEquipamentoTemperaturaNovo] = useState({
+    nome: "",
+    setor: "cozinha",
+    temperatura_min: "",
+    temperatura_max: ""
+  });
+  const [filtroSetorTemperatura, setFiltroSetorTemperatura] = useState("cozinha");
+
   /* ✅ Avisos começam fechados */
   const [avisosAbertos, setAvisosAbertos] = useState(false);
 
@@ -341,7 +351,67 @@ export default function Gerente({ onLogout }) {
   /* ===== FETCH ===== */
   useEffect(() => {
     fetchTudo();
+    fetchTemperaturasGerente();
   }, []);
+
+  async function fetchTemperaturasGerente() {
+    const [equipamentosRes, registosRes] = await Promise.all([
+      supabase.from("equipamentos_temperatura").select("*").order("setor").order("nome"),
+      supabase.from("registos_temperatura").select("*").order("registado_em", { ascending: false }).limit(200)
+    ]);
+
+    if (equipamentosRes.error || registosRes.error) {
+      console.error(equipamentosRes.error || registosRes.error);
+      return;
+    }
+
+    setEquipamentosTemperatura(equipamentosRes.data || []);
+    setRegistosTemperatura(registosRes.data || []);
+  }
+
+  async function guardarEquipamentoTemperatura(event) {
+    event.preventDefault();
+    const minRaw = equipamentoTemperaturaNovo.temperatura_min;
+    const maxRaw = equipamentoTemperaturaNovo.temperatura_max;
+    const min = minRaw === "" ? null : Number(String(minRaw).replace(",", "."));
+    const max = maxRaw === "" ? null : Number(String(maxRaw).replace(",", "."));
+
+    if (!equipamentoTemperaturaNovo.nome.trim()) {
+      alert("Indica o nome do equipamento.");
+      return;
+    }
+    if ((min !== null && !Number.isFinite(min)) || (max !== null && !Number.isFinite(max))) {
+      alert("Confirma os limites de temperatura.");
+      return;
+    }
+    if (min !== null && max !== null && min > max) {
+      alert("A temperatura mínima não pode ser superior à máxima.");
+      return;
+    }
+
+    const payload = {
+      nome: equipamentoTemperaturaNovo.nome.trim(),
+      setor: equipamentoTemperaturaNovo.setor,
+      temperatura_min: min,
+      temperatura_max: max,
+      ativo: true
+    };
+
+    let res;
+    if (equipamentoTemperaturaNovo.id) {
+      res = await supabase.from("equipamentos_temperatura").update(payload).eq("id", equipamentoTemperaturaNovo.id);
+    } else {
+      res = await supabase.from("equipamentos_temperatura").insert(payload);
+    }
+
+    if (res.error) {
+      mostrarErro("Não foi possível guardar o equipamento", res.error);
+      return;
+    }
+
+    setEquipamentoTemperaturaNovo({ nome: "", setor: "cozinha", temperatura_min: "", temperatura_max: "" });
+    await fetchTemperaturasGerente();
+  }
 
   useEffect(() => {
     if (area !== "historico") return;
@@ -955,7 +1025,7 @@ export default function Gerente({ onLogout }) {
         {[
           ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"], ["saidas", "➖ Saídas"],
           ["inventario", "🧾 Inventário"], ["produtos", "📦 Produtos"],
-          ["historico", "📜 Histórico"]
+          ["temperaturas", "🌡️ Temperaturas"], ["historico", "📜 Histórico"]
         ].map(([id, titulo]) => (
           <button key={id} type="button" aria-pressed={area === id} onClick={() => setArea(id)}>{titulo}</button>
         ))}
@@ -1231,6 +1301,138 @@ export default function Gerente({ onLogout }) {
         )}
       </div>
 
+      </>}
+
+      {area === "temperaturas" && <>
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">🌡️ Equipamentos e temperaturas</h3>
+        <p className="operacao-muted">Configura os equipamentos por área e os limites aceitáveis.</p>
+
+        <form className="operacao-form" onSubmit={guardarEquipamentoTemperatura}>
+          <input
+            style={styles.input}
+            placeholder="Nome do equipamento"
+            value={equipamentoTemperaturaNovo.nome}
+            onChange={e => setEquipamentoTemperaturaNovo(prev => ({ ...prev, nome: e.target.value }))}
+            required
+          />
+          <select
+            style={styles.input}
+            value={equipamentoTemperaturaNovo.setor}
+            onChange={e => setEquipamentoTemperaturaNovo(prev => ({ ...prev, setor: e.target.value }))}
+          >
+            <option value="cozinha">🍳 Cozinha</option>
+            <option value="atendimento">🛎️ Atendimento</option>
+          </select>
+          <input
+            style={styles.input}
+            type="number"
+            step="0.1"
+            placeholder="Temperatura mínima °C"
+            value={equipamentoTemperaturaNovo.temperatura_min}
+            onChange={e => setEquipamentoTemperaturaNovo(prev => ({ ...prev, temperatura_min: e.target.value }))}
+          />
+          <input
+            style={styles.input}
+            type="number"
+            step="0.1"
+            placeholder="Temperatura máxima °C"
+            value={equipamentoTemperaturaNovo.temperatura_max}
+            onChange={e => setEquipamentoTemperaturaNovo(prev => ({ ...prev, temperatura_max: e.target.value }))}
+          />
+          <button style={styles.button}>
+            {equipamentoTemperaturaNovo.id ? "Guardar alterações" : "Adicionar equipamento"}
+          </button>
+          {equipamentoTemperaturaNovo.id && (
+            <button
+              type="button"
+              style={{ ...styles.button, ...styles.secondary }}
+              onClick={() => setEquipamentoTemperaturaNovo({ nome: "", setor: "cozinha", temperatura_min: "", temperatura_max: "" })}
+            >
+              Cancelar
+            </button>
+          )}
+        </form>
+      </div>
+
+      <div style={styles.card}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <button type="button" style={{ ...styles.button, ...(filtroSetorTemperatura === "cozinha" ? {} : styles.secondary) }} onClick={() => setFiltroSetorTemperatura("cozinha")}>🍳 Cozinha</button>
+          <button type="button" style={{ ...styles.button, ...(filtroSetorTemperatura === "atendimento" ? {} : styles.secondary) }} onClick={() => setFiltroSetorTemperatura("atendimento")}>🛎️ Atendimento</button>
+        </div>
+
+        <h3 className="operacao-section-title">Equipamentos</h3>
+        {equipamentosTemperatura.filter(e => e.setor === filtroSetorTemperatura).length === 0 ? (
+          <p className="operacao-muted">Ainda não existem equipamentos nesta área.</p>
+        ) : (
+          equipamentosTemperatura.filter(e => e.setor === filtroSetorTemperatura).map(eq => (
+            <div key={eq.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 8, alignItems: "center", padding: "10px 0", borderBottom: "1px solid #e7eae3", opacity: eq.ativo ? 1 : 0.55 }}>
+              <div>
+                <strong>{eq.nome}</strong>
+                <div style={{ fontSize: 12, opacity: 0.72 }}>
+                  {eq.temperatura_min ?? "—"} °C a {eq.temperatura_max ?? "—"} °C {eq.ativo ? "" : "· Inativo"}
+                </div>
+              </div>
+              <button
+                type="button"
+                style={{ ...styles.button, ...styles.secondary }}
+                onClick={() => setEquipamentoTemperaturaNovo({
+                  id: eq.id,
+                  nome: eq.nome,
+                  setor: eq.setor,
+                  temperatura_min: eq.temperatura_min ?? "",
+                  temperatura_max: eq.temperatura_max ?? ""
+                })}
+              >
+                ✏️ Editar
+              </button>
+              <button
+                type="button"
+                style={{ ...styles.button, ...styles.secondary }}
+                onClick={async () => {
+                  const { error } = await supabase.from("equipamentos_temperatura").update({ ativo: !eq.ativo }).eq("id", eq.id);
+                  if (error) return mostrarErro("Não foi possível alterar o equipamento", error);
+                  await fetchTemperaturasGerente();
+                }}
+              >
+                {eq.ativo ? "Desativar" : "Ativar"}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div style={styles.card}>
+        <h3 className="operacao-section-title">📜 Histórico de temperaturas · {filtroSetorTemperatura === "cozinha" ? "Cozinha" : "Atendimento"}</h3>
+        <div style={{ overflowX: "auto" }}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Data/Hora</th>
+                <th style={styles.th}>Equipamento</th>
+                <th style={styles.th}>Temperatura</th>
+                <th style={styles.th}>Responsável</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registosTemperatura.filter(r => r.setor === filtroSetorTemperatura).map(r => {
+                const d = new Date(r.registado_em);
+                return (
+                  <tr key={r.id}>
+                    <td style={styles.td}>{d.toLocaleDateString("pt-PT")} {d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</td>
+                    <td style={styles.td}>{r.equipamento_nome}</td>
+                    <td style={styles.td}>{Number(r.temperatura).toLocaleString("pt-PT", { maximumFractionDigits: 1 })} °C</td>
+                    <td style={styles.td}>{r.responsavel}</td>
+                  </tr>
+                );
+              })}
+              {registosTemperatura.filter(r => r.setor === filtroSetorTemperatura).length === 0 && (
+                <tr><td style={styles.td} colSpan={4}>Ainda não existem registos nesta área.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
       </>}
 
       {area === "historico" && <>
