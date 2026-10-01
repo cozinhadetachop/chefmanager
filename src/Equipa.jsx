@@ -448,7 +448,7 @@ export default function Equipa({ onLogout }) {
       <header className="operacao-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
           <img src="/logo-cozinha-de-tacho.svg" alt="Cozinha de Tacho" style={{ display: "block", width: 220, maxWidth: "70vw", height: "auto" }} />
-          <h2 style={{ margin: "8px 0 0" }}>Equipa · Registo de saídas</h2>
+          <h2 style={{ margin: "8px 0 0" }}>Equipa · Registos</h2>
         </div>
         <button onClick={onLogout} style={{ ...styles.button, ...styles.danger }}>
           🔑 Sair
