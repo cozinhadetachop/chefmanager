@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import SegurancaAlimentarEquipa from "./SegurancaAlimentarEquipa";
+import { HigienizacaoEquipa, SobremesasEquipa } from "./RegistosHACCPEquipa";
 
 /* ===== Estilos (iguais ao resto da app) ===== */
 const styles = {
@@ -454,13 +455,19 @@ export default function Equipa({ onLogout }) {
         </button>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 14 }}>
         <button type="button" style={{ ...styles.button, ...(areaEquipe === "saidas" ? {} : styles.secondary) }} onClick={() => setAreaEquipe("saidas")}>➖ Saídas</button>
         <button type="button" style={{ ...styles.button, ...(areaEquipe === "temperaturas" ? {} : styles.secondary) }} onClick={() => setAreaEquipe("temperaturas")}>🌡️ Temperaturas</button>
+        <button type="button" style={{ ...styles.button, ...(areaEquipe === "higienizacao" ? {} : styles.secondary) }} onClick={() => setAreaEquipe("higienizacao")}>🧼 Higienização</button>
+        <button type="button" style={{ ...styles.button, ...(areaEquipe === "sobremesas" ? {} : styles.secondary) }} onClick={() => setAreaEquipe("sobremesas")}>🍰 Sobremesas</button>
       </div>
 
       {areaEquipe === "temperaturas" ? (
         <SegurancaAlimentarEquipa />
+      ) : areaEquipe === "higienizacao" ? (
+        <HigienizacaoEquipa />
+      ) : areaEquipe === "sobremesas" ? (
+        <SobremesasEquipa />
       ) : (
         <>
           <p className="operacao-muted">Pesquisa o produto, indica a quantidade e adiciona. No fim confirma todas as saídas de uma vez.</p>
