@@ -1,0 +1,101 @@
+import { useEffect, useState } from "react";
+import { supabase } from "./supabaseClient";
+
+const styles = {
+  card: { border: "1px solid #dfe5da", borderRadius: 18, padding: 18, marginBottom: 14, background: "rgba(255,255,255,.94)", boxShadow: "0 6px 18px rgba(49,67,42,.055)" },
+  button: { minHeight: 42, padding: "8px 13px", border: "1px solid #536b45", borderRadius: 11, background: "linear-gradient(135deg, #5d774d, #49633d)", color: "white", fontSize: 14, fontWeight: 750, cursor: "pointer" },
+  secondary: { background: "white", color: "#34452d", borderColor: "#dce3d7" },
+  table: { width: "100%", borderCollapse: "collapse", marginTop: 8 },
+  th: { textAlign: "left", borderBottom: "1px solid #ccc", padding: "8px 6px", whiteSpace: "nowrap" },
+  td: { padding: "8px 6px", borderBottom: "1px solid #f0f0f0", whiteSpace: "nowrap" }
+};
+
+function dataHora(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  return `${d.toLocaleDateString("pt-PT")} ${d.toLocaleTimeString("pt-PT",{hour:"2-digit",minute:"2-digit"})}`;
+}
+function labelMomento(v) {
+  return ({ inicio:"Início", intermedio:"Intermédio", fim:"Fim" })[v] || v;
+}
+function labelClass(v) {
+  return ({ bom:"BOM", medio:"MÉDIO", mau:"MAU", muito_mau:"MUITO MAU" })[v] || v;
+}
+
+export default function SegurancaAlimentarGerente() {
+  const [tab,setTab]=useState("quente");
+  const [quente,setQuente]=useState([]);
+  const [oleos,setOleos]=useState([]);
+
+  useEffect(()=>{ carregar(); },[]);
+  async function carregar(){
+    const [q,o]=await Promise.all([
+      supabase.from("registos_manutencao_quente").select("*").order("registado_em",{ascending:false}).limit(300),
+      supabase.from("registos_oleo_fritura").select("*").order("registado_em",{ascending:false}).limit(300)
+    ]);
+    if(!q.error) setQuente(q.data||[]);
+    if(!o.error) setOleos(o.data||[]);
+  }
+
+  return <div style={styles.card}>
+    <h3 style={{marginTop:0}}>🧪 Registos HACCP</h3>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+      <button type="button" style={{...styles.button,...(tab==="quente"?{}:styles.secondary)}} onClick={()=>setTab("quente")}>♨️ Self / Banho-Maria</button>
+      <button type="button" style={{...styles.button,...(tab==="oleos"?{}:styles.secondary)}} onClick={()=>setTab("oleos")}>🍟 Óleos de fritura</button>
+    </div>
+
+    {tab==="quente" && <div style={{overflowX:"auto"}}>
+      <p style={{opacity:.75}}>Referências: equipamento 80–90 °C · interior do alimento ≥65 °C.</p>
+      <table style={styles.table}>
+        <thead><tr>
+          <th style={styles.th}>Data/Hora</th><th style={styles.th}>BM</th><th style={styles.th}>Refeição</th><th style={styles.th}>Momento</th>
+          <th style={styles.th}>Alimento</th><th style={styles.th}>Equip.</th><th style={styles.th}>Responsável</th>
+        </tr></thead>
+        <tbody>
+          {quente.map(r=>{
+            const ali=r.temperatura_alimento===null?null:Number(r.temperatura_alimento);
+            const eq=r.temperatura_equipamento===null?null:Number(r.temperatura_equipamento);
+            const foraAli=ali!==null&&ali<65;
+            const foraEq=eq!==null&&(eq<80||eq>90);
+            return <tr key={r.id} style={(foraAli||foraEq)?{background:"#fff1f0"}:{}}>
+              <td style={styles.td}>{dataHora(r.registado_em)}</td>
+              <td style={styles.td}>N.º {r.equipamento_num}</td>
+              <td style={styles.td}>{r.refeicao==="almoco"?"Almoço":"Jantar"}</td>
+              <td style={styles.td}>{labelMomento(r.momento)}</td>
+              <td style={{...styles.td,...(foraAli?{color:"#b42318",fontWeight:700}:{})}}>{ali===null?"—":`${ali} °C`}</td>
+              <td style={{...styles.td,...(foraEq?{color:"#b42318",fontWeight:700}:{})}}>{eq===null?"—":`${eq} °C`}</td>
+              <td style={styles.td}>{r.responsavel}</td>
+            </tr>;
+          })}
+          {!quente.length&&<tr><td style={styles.td} colSpan={7}>Ainda não existem registos.</td></tr>}
+        </tbody>
+      </table>
+    </div>}
+
+    {tab==="oleos" && <div style={{overflowX:"auto"}}>
+      <p style={{opacity:.75}}>Rejeitar nos resultados MAU e MUITO MAU · temperatura ≤180 °C.</p>
+      <table style={styles.table}>
+        <thead><tr>
+          <th style={styles.th}>Data/Hora</th><th style={styles.th}>Fritadeira</th><th style={styles.th}>Teste</th>
+          <th style={styles.th}>Temperatura</th><th style={styles.th}>Substituição</th><th style={styles.th}>Responsável</th>
+        </tr></thead>
+        <tbody>
+          {oleos.map(r=>{
+            const t=r.temperatura===null?null:Number(r.temperatura);
+            const rejeitar=r.classificacao==="mau"||r.classificacao==="muito_mau";
+            const quenteDemais=t!==null&&t>180;
+            return <tr key={r.id} style={(rejeitar||quenteDemais)?{background:"#fff1f0"}:{}}>
+              <td style={styles.td}>{dataHora(r.registado_em)}</td>
+              <td style={styles.td}>N.º {r.fritadeira_num}</td>
+              <td style={{...styles.td,...(rejeitar?{color:"#b42318",fontWeight:700}:{})}}>{labelClass(r.classificacao)}</td>
+              <td style={{...styles.td,...(quenteDemais?{color:"#b42318",fontWeight:700}:{})}}>{t===null?"—":`${t} °C`}</td>
+              <td style={styles.td}>{r.substituicao?"Sim":"Não"}</td>
+              <td style={styles.td}>{r.responsavel}</td>
+            </tr>;
+          })}
+          {!oleos.length&&<tr><td style={styles.td} colSpan={6}>Ainda não existem registos.</td></tr>}
+        </tbody>
+      </table>
+    </div>}
+  </div>;
+}
