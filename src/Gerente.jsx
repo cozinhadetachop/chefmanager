@@ -1411,6 +1411,7 @@ export default function Gerente({ onLogout }) {
             <thead>
               <tr>
                 <th style={styles.th}>Data/Hora</th>
+                <th style={styles.th}>Momento</th>
                 <th style={styles.th}>Equipamento</th>
                 <th style={styles.th}>Temperatura</th>
                 <th style={styles.th}>Responsável</th>
@@ -1422,6 +1423,7 @@ export default function Gerente({ onLogout }) {
                 return (
                   <tr key={r.id}>
                     <td style={styles.td}>{d.toLocaleDateString("pt-PT")} {d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</td>
+                    <td style={styles.td}>{r.momento === "inicio" ? "Início do dia" : r.momento === "fim" ? "Fim do dia" : "—"}</td>
                     <td style={styles.td}>{r.equipamento_nome}</td>
                     <td style={styles.td}>{Number(r.temperatura).toLocaleString("pt-PT", { maximumFractionDigits: 1 })} °C</td>
                     <td style={styles.td}>{r.responsavel}</td>
@@ -1429,7 +1431,7 @@ export default function Gerente({ onLogout }) {
                 );
               })}
               {registosTemperatura.filter(r => r.setor === filtroSetorTemperatura).length === 0 && (
-                <tr><td style={styles.td} colSpan={4}>Ainda não existem registos nesta área.</td></tr>
+                <tr><td style={styles.td} colSpan={5}>Ainda não existem registos nesta área.</td></tr>
               )}
             </tbody>
           </table>
