@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import SaidasRapidas from "./SaidasRapidas";
+import SegurancaAlimentarGerente from "./SegurancaAlimentarGerente";
 
 /* ✅ PDF */
 import jsPDF from "jspdf";
@@ -1304,9 +1305,10 @@ export default function Gerente({ onLogout }) {
       </>}
 
       {area === "temperaturas" && <>
+      <SegurancaAlimentarGerente />
       <div style={styles.card}>
-        <h3 className="operacao-section-title">🌡️ Equipamentos e temperaturas</h3>
-        <p className="operacao-muted">Configura os equipamentos por área e os limites aceitáveis.</p>
+        <h3 className="operacao-section-title">🌡️ Configuração de frio e outros equipamentos</h3>
+        <p className="operacao-muted">Configuração dos equipamentos do registo geral. Self/Banho-Maria e fritadeiras têm agora controlos próprios acima.</p>
 
         <form className="operacao-form" onSubmit={guardarEquipamentoTemperatura}>
           <input
@@ -1362,10 +1364,10 @@ export default function Gerente({ onLogout }) {
         </div>
 
         <h3 className="operacao-section-title">Equipamentos</h3>
-        {equipamentosTemperatura.filter(e => e.setor === filtroSetorTemperatura).length === 0 ? (
+        {equipamentosTemperatura.filter(e => e.setor === filtroSetorTemperatura && !/^Self\b|^Fritadeira\b/i.test(e.nome || "")).length === 0 ? (
           <p className="operacao-muted">Ainda não existem equipamentos nesta área.</p>
         ) : (
-          equipamentosTemperatura.filter(e => e.setor === filtroSetorTemperatura).map(eq => (
+          equipamentosTemperatura.filter(e => e.setor === filtroSetorTemperatura && !/^Self\b|^Fritadeira\b/i.test(e.nome || "")).map(eq => (
             <div key={eq.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 8, alignItems: "center", padding: "10px 0", borderBottom: "1px solid #e7eae3", opacity: eq.ativo ? 1 : 0.55 }}>
               <div>
                 <strong>{eq.nome}</strong>
@@ -1403,7 +1405,7 @@ export default function Gerente({ onLogout }) {
       </div>
 
       <div style={styles.card}>
-        <h3 className="operacao-section-title">📜 Histórico de temperaturas · {filtroSetorTemperatura === "cozinha" ? "Cozinha" : "Atendimento"}</h3>
+        <h3 className="operacao-section-title">📜 Histórico de frio/outros · {filtroSetorTemperatura === "cozinha" ? "Cozinha" : "Atendimento"}</h3>
         <div style={{ overflowX: "auto" }}>
           <table style={styles.table}>
             <thead>
