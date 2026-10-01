@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import SaidasRapidas from "./SaidasRapidas";
 import SegurancaAlimentarGerente from "./SegurancaAlimentarGerente";
+import RegistosHACCPGerente from "./RegistosHACCPGerente";
 
 /* ✅ PDF */
 import jsPDF from "jspdf";
@@ -1026,7 +1027,7 @@ export default function Gerente({ onLogout }) {
         {[
           ["stock", "📊 Resumo"], ["movimentos", "➕ Entradas"], ["saidas", "➖ Saídas"],
           ["inventario", "🧾 Inventário"], ["produtos", "📦 Produtos"],
-          ["temperaturas", "🌡️ Temperaturas"], ["historico", "📜 Histórico"]
+          ["temperaturas", "🌡️ Temperaturas"], ["haccp", "📋 HACCP"], ["historico", "📜 Histórico"]
         ].map(([id, titulo]) => (
           <button key={id} type="button" aria-pressed={area === id} onClick={() => setArea(id)}>{titulo}</button>
         ))}
@@ -1438,6 +1439,8 @@ export default function Gerente({ onLogout }) {
         </div>
       </div>
       </>}
+
+      {area === "haccp" && <RegistosHACCPGerente />}
 
       {area === "historico" && <>
       <div style={styles.card}>
