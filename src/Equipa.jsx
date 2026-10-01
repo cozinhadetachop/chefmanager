@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
+import SegurancaAlimentarEquipa from "./SegurancaAlimentarEquipa";
 
 /* ===== Estilos (iguais ao resto da app) ===== */
 const styles = {
@@ -459,114 +460,7 @@ export default function Equipa({ onLogout }) {
       </div>
 
       {areaEquipe === "temperaturas" ? (
-        <>
-          <div style={styles.card}>
-            <h3 className="operacao-section-title">🌡️ Registo de temperaturas</h3>
-            <p className="operacao-muted">Escolhe a área e regista apenas as temperaturas medidas.</p>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-              <button type="button" style={{ ...styles.button, ...(setorTemperaturas === "cozinha" ? {} : styles.secondary) }} onClick={() => setSetorTemperaturas("cozinha")}>🍳 Cozinha</button>
-              <button type="button" style={{ ...styles.button, ...(setorTemperaturas === "atendimento" ? {} : styles.secondary) }} onClick={() => setSetorTemperaturas("atendimento")}>🛎️ Atendimento</button>
-            </div>
-
-            {equipamentosTemperatura.filter(e => e.setor === setorTemperaturas).length === 0 ? (
-              <p className="operacao-muted">Ainda não existem equipamentos configurados nesta área.</p>
-            ) : (
-              equipamentosTemperatura.filter(e => e.setor === setorTemperaturas).map(equipamento => {
-                const valor = temperaturas[equipamento.id] ?? "";
-                const n = Number(String(valor).replace(",", "."));
-                const fora = valor !== "" && Number.isFinite(n) && (
-                  (equipamento.temperatura_min !== null && n < Number(equipamento.temperatura_min)) ||
-                  (equipamento.temperatura_max !== null && n > Number(equipamento.temperatura_max))
-                );
-                return (
-                  <div key={equipamento.id} style={{ padding: "12px 0", borderBottom: "1px solid #e7eae3" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 120px", gap: 10, alignItems: "center" }}>
-                      <div>
-                        <strong>{equipamento.nome}</strong>
-                        <div style={{ fontSize: 12, opacity: 0.72 }}>
-                          {equipamento.temperatura_min !== null && equipamento.temperatura_max !== null
-                            ? `Limites: ${equipamento.temperatura_min} °C a ${equipamento.temperatura_max} °C`
-                            : equipamento.temperatura_min !== null
-                              ? `Mínimo: ≥ ${equipamento.temperatura_min} °C`
-                              : equipamento.temperatura_max !== null
-                                ? `Máximo: ≤ ${equipamento.temperatura_max} °C`
-                                : "Sem limites definidos"}
-                        </div>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: equipamento.temperatura_max !== null && Number(equipamento.temperatura_max) < 0 ? "44px 1fr" : "1fr", gap: 6 }}>
-                        {equipamento.temperatura_max !== null && Number(equipamento.temperatura_max) < 0 && (
-                          <button
-                            type="button"
-                            style={{ ...styles.button, ...styles.secondary, padding: "8px 6px", minHeight: 46, fontSize: 22 }}
-                            title="Adicionar sinal negativo"
-                            onClick={() => setTemperaturas(prev => {
-                              const atual = String(prev[equipamento.id] ?? "");
-                              const semSinal = atual.replace(/^[-+]/, "");
-                              return { ...prev, [equipamento.id]: semSinal ? `-${semSinal}` : "-" };
-                            })}
-                          >
-                            −
-                          </button>
-                        )}
-                        <input
-                          style={{ ...styles.input, width: "100%", textAlign: "center", ...(fora ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }}
-                          type="text"
-                          inputMode="decimal"
-                          placeholder={equipamento.temperatura_max !== null && Number(equipamento.temperatura_max) < 0 ? "-18 °C" : "°C"}
-                          value={valor}
-                          onChange={ev => {
-                            const novo = ev.target.value.replace(",", ".");
-                            if (/^-?\d*(?:\.\d*)?$/.test(novo)) {
-                              setTemperaturas(prev => ({ ...prev, [equipamento.id]: novo }));
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                    {fora && <div style={{ color: "#b42318", fontWeight: 700, marginTop: 5 }}>⚠ Fora do intervalo definido</div>}
-                  </div>
-                );
-              })
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
-              <label>
-                <strong>Data</strong>
-                <input
-                  style={{ ...styles.input, width: "100%", boxSizing: "border-box" }}
-                  type="date"
-                  value={dataTemperaturas}
-                  max={(() => {
-                    const d = new Date();
-                    const pad = v => String(v).padStart(2, "0");
-                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-                  })()}
-                  onChange={e => setDataTemperaturas(e.target.value)}
-                />
-              </label>
-
-              <label>
-                <strong>Hora</strong>
-                <input
-                  style={{ ...styles.input, width: "100%", boxSizing: "border-box" }}
-                  type="time"
-                  value={horaTemperaturas}
-                  onChange={e => setHoraTemperaturas(e.target.value)}
-                />
-              </label>
-            </div>
-
-            <label style={{ display: "block", marginTop: 14 }}>
-              <strong>Responsável</strong>
-              <input style={{ ...styles.input, width: "100%", boxSizing: "border-box" }} value={responsavelTemperaturas} onChange={e => setResponsavelTemperaturas(e.target.value)} placeholder="Nome" />
-            </label>
-
-            <button type="button" style={{ ...styles.button, width: "100%", marginTop: 12 }} disabled={aGuardarTemperaturas} onClick={guardarTemperaturas}>
-              {aGuardarTemperaturas ? "A guardar…" : "✅ Guardar temperaturas"}
-            </button>
-          </div>
-        </>
+        <SegurancaAlimentarEquipa />
       ) : (
         <>
           <p className="operacao-muted">Pesquisa o produto, indica a quantidade e adiciona. No fim confirma todas as saídas de uma vez.</p>
