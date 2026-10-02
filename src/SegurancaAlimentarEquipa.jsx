@@ -20,7 +20,9 @@ function agoraHora() {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 function numero(v) {
-  const n = Number(String(v ?? "").replace(",", "."));
+  const texto = String(v ?? "").trim();
+  if (!texto) return null;
+  const n = Number(texto.replace(",", "."));
   return Number.isFinite(n) ? n : null;
 }
 function instanteValido(data, hora) {
@@ -177,16 +179,16 @@ export default function SegurancaAlimentarEquipa() {
       </div>}
 
       {separador === "quente" && <div style={styles.card}>
-        <h3 style={{ marginTop: 0 }}>♨️ Manutenção a quente</h3>
-        <p style={{ marginTop: -4, opacity: .75 }}>Equipamento: 80–90 °C · Interior do alimento: ≥ 65 °C</p>
+        <h3 style={{ marginTop: 0 }}>♨️ Temperaturas do Self / Banho-Maria</h3>
+        <p style={{ marginTop: -4, opacity: .75 }}>Regista a temperatura do alimento e/ou do equipamento. Equipamento: 80–90 °C · Interior do alimento: ≥ 65 °C</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <label><strong>Banho-Maria</strong><select style={styles.input} value={bm.equipamento} onChange={e => setBm(p => ({ ...p, equipamento: e.target.value }))}><option value="1">Equipamento 1</option><option value="2">Equipamento 2</option></select></label>
           <label><strong>Refeição</strong><select style={styles.input} value={bm.refeicao} onChange={e => setBm(p => ({ ...p, refeicao: e.target.value }))}><option value="almoco">Almoço</option><option value="jantar">Jantar</option></select></label>
         </div>
         <label><strong>Momento</strong><select style={styles.input} value={bm.momento} onChange={e => setBm(p => ({ ...p, momento: e.target.value }))}><option value="inicio">Início</option><option value="intermedio">Intermédio</option><option value="fim">Fim</option></select></label>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <label><strong>Alimento (°C)</strong><input style={{ ...styles.input, ...(tempAli !== null && tempAli < 65 ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }} inputMode="decimal" value={bm.alimento} onChange={e => setBm(p => ({ ...p, alimento: e.target.value }))} placeholder="≥ 65" /></label>
-          <label><strong>Equipamento (°C)</strong><input style={{ ...styles.input, ...(tempEquip !== null && (tempEquip < 80 || tempEquip > 90) ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }} inputMode="decimal" value={bm.equipamentoTemp} onChange={e => setBm(p => ({ ...p, equipamentoTemp: e.target.value }))} placeholder="80–90" /></label>
+          <label><strong>Temperatura do alimento (°C)</strong><input style={{ ...styles.input, ...(tempAli !== null && tempAli < 65 ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }} type="text" inputMode="decimal" value={bm.alimento} onChange={e => setBm(p => ({ ...p, alimento: e.target.value.replace(",", ".") }))} placeholder="Ex.: 72" /></label>
+          <label><strong>Temperatura do Self / equipamento (°C)</strong><input style={{ ...styles.input, ...(tempEquip !== null && (tempEquip < 80 || tempEquip > 90) ? { borderColor: "#b42318", background: "#fff1f0" } : {}) }} type="text" inputMode="decimal" value={bm.equipamentoTemp} onChange={e => setBm(p => ({ ...p, equipamentoTemp: e.target.value.replace(",", ".") }))} placeholder="Ex.: 85" /></label>
         </div>
         {((tempAli !== null && tempAli < 65) || (tempEquip !== null && (tempEquip < 80 || tempEquip > 90))) && <div style={styles.dangerBox}>⚠ Valor fora da referência. O registo será guardado.</div>}
       </div>}
