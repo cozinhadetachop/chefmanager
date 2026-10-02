@@ -106,7 +106,7 @@ export function HigienizacaoEquipa() {
       p_area:area,p_frequencia:freq,p_tarefas:selecionadas,p_data:data,p_responsavel:responsavel.trim()
     });
     setAGuardar(false);
-    if(error) return alert("Não foi possível guardar o registo de higienização.");
+    if(error) { console.error(error); return alert(`Não foi possível guardar a higienização. ${error.message || ""}`.trim()); }
     setSelecionadas([]);
     alert("Higienização registada.");
   }
@@ -180,7 +180,7 @@ export function SobremesasEquipa() {
       p_responsavel:f.responsavel.trim()
     });
     setAGuardar(false);
-    if(error) return alert("Não foi possível guardar a rastreabilidade.");
+    if(error) { console.error(error); return alert(`Não foi possível guardar a rastreabilidade. ${error.message || ""}`.trim()); }
     setF({identificacao:"",data_preparacao:hoje(),validade:"",quantidade:"",stock:"",responsavel:f.responsavel});
     alert("Rastreabilidade da sobremesa registada.");
   }
