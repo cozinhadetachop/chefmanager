@@ -85,7 +85,7 @@ export default function SegurancaAlimentarEquipa() {
     setAGuardar(true);
     const { error } = await supabase.rpc("equipa_registar_temperaturas", { p_itens: itens, p_responsavel: responsavel.trim() });
     setAGuardar(false);
-    if (error) return alert("Não foi possível guardar o registo.");
+    if (error) { console.error(error); return alert(`Não foi possível guardar o registo. ${error.message || ""}`.trim()); }
     setTemperaturas({});
     alert("Temperaturas de frio registadas.");
   }
@@ -108,7 +108,7 @@ export default function SegurancaAlimentarEquipa() {
       p_registado_em: `${data}T${hora}:00`
     });
     setAGuardar(false);
-    if (error) return alert("Não foi possível guardar o registo.");
+    if (error) { console.error(error); return alert(`Não foi possível guardar o registo. ${error.message || ""}`.trim()); }
     setBm(prev => ({ ...prev, alimento: "", equipamentoTemp: "" }));
     alert("Registo do Self/Banho-Maria guardado.");
   }
@@ -129,7 +129,7 @@ export default function SegurancaAlimentarEquipa() {
       p_registado_em: `${data}T${hora}:00`
     });
     setAGuardar(false);
-    if (error) return alert("Não foi possível guardar o registo.");
+    if (error) { console.error(error); return alert(`Não foi possível guardar o registo. ${error.message || ""}`.trim()); }
     setOleo(prev => ({ ...prev, classificacao: "", temperatura: "", substituicao: false }));
     alert("Controlo do óleo registado.");
   }
