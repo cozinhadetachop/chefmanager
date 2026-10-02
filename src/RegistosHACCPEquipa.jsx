@@ -124,11 +124,25 @@ export function HigienizacaoEquipa() {
         <button type="button" style={{...styles.button,...(freq==="mensal"?{}:styles.secondary)}} onClick={()=>mudarFreq("mensal")}>Mensal</button>
       </div>
 
-      <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",marginBottom:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
         <strong>{selecionadas.length} tarefa(s) assinalada(s)</strong>
-        <button type="button" style={{...styles.button,...styles.secondary,minHeight:38,padding:"6px 10px"}} onClick={()=>setSelecionadas(selecionadas.length===tarefas.length?[]:[...tarefas])}>
-          {selecionadas.length===tarefas.length?"Desmarcar todas":"Marcar todas"}
-        </button>
+        {freq==="diario" ? (
+          <button
+            type="button"
+            style={{...styles.button,minHeight:44,padding:"8px 14px"}}
+            onClick={()=>setSelecionadas(selecionadas.length===tarefas.length?[]:[...tarefas])}
+          >
+            {selecionadas.length===tarefas.length?"☐ Desselecionar todos":"☑ Selecionar todos"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            style={{...styles.button,...styles.secondary,minHeight:38,padding:"6px 10px"}}
+            onClick={()=>setSelecionadas(selecionadas.length===tarefas.length?[]:[...tarefas])}
+          >
+            {selecionadas.length===tarefas.length?"Desselecionar todos":"Selecionar todos"}
+          </button>
+        )}
       </div>
 
       {tarefas.map(t=><label key={t} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 0",borderBottom:"1px solid #e7eae3",fontWeight:600}}>
