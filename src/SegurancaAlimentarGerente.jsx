@@ -107,7 +107,7 @@ export default function SegurancaAlimentarGerente() {
       <div style={{overflowX:"auto"}}>
       <table style={styles.table}>
         <thead><tr>
-          <th style={styles.th}>Data/Hora</th><th style={styles.th}>BM</th><th style={styles.th}>Refeição</th><th style={styles.th}>Momento</th>
+          <th style={styles.th}>Data/Hora</th><th style={styles.th}>Self</th><th style={styles.th}>Período</th><th style={styles.th}>Momento</th>
           <th style={styles.th}>Alimento</th><th style={styles.th}>Equip.</th><th style={styles.th}>Responsável</th>
         </tr></thead>
         <tbody>
