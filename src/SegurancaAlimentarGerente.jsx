@@ -60,7 +60,7 @@ export default function SegurancaAlimentarGerente() {
             return <tr key={r.id} style={(foraAli||foraEq)?{background:"#fff1f0"}:{}}>
               <td style={styles.td}>{dataHora(r.registado_em)}</td>
               <td style={styles.td}>N.º {r.equipamento_num}</td>
-              <td style={styles.td}>{r.refeicao==="almoco"?"Almoço":"Jantar"}</td>
+              <td style={styles.td}>{r.refeicao==="manha"?"Manhã":r.refeicao==="tarde"?"Tarde":r.refeicao}</td>
               <td style={styles.td}>{labelMomento(r.momento)}</td>
               <td style={{...styles.td,...(foraAli?{color:"#b42318",fontWeight:700}:{})}}>{ali===null?"—":`${ali} °C`}</td>
               <td style={{...styles.td,...(foraEq?{color:"#b42318",fontWeight:700}:{})}}>{eq===null?"—":`${eq} °C`}</td>
