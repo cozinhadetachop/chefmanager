@@ -256,7 +256,9 @@ export default function Gerente({ onLogout }) {
     if (!window.confirm(`Confirmar ${entradasProvisorias.length} entrada(s) de stock?`)) return;
 
     setARegistarFaturaEntrada(true);
-    const agora = new Date().toISOString();
+    const agora = new Date();
+    const pad = valor => String(valor).padStart(2, "0");
+    const datahoraLocal = `${agora.getFullYear()}-${pad(agora.getMonth() + 1)}-${pad(agora.getDate())}T${pad(agora.getHours())}:${pad(agora.getMinutes())}:${pad(agora.getSeconds())}`;
     const payload = entradasProvisorias.map(item => {
       const preco = item.precoUnit === "" || item.precoUnit === undefined ? null : Number(item.precoUnit);
       return {
@@ -264,17 +266,21 @@ export default function Gerente({ onLogout }) {
         quantidade: Number(item.quantidade),
         unidade: produtos.find(p => p.nome === item.produto)?.unidade || null,
         precoUnit: preco,
-        precoTotal: preco === null ? null : Number(item.quantidade) * preco,
-        codigo_artigo: item.codigoArtigo || null,
-        datahora: agora,
-        responsavel: "Gerente"
+        codigo_artigo: item.codigoArtigo || null
       };
     });
 
-    const { error } = await supabase.from("entradas").insert(payload);
+    const { data: totalGravado, error } = await supabase.rpc("gerente_registar_entradas", {
+      p_itens: payload,
+      p_datahora: datahoraLocal
+    });
     setARegistarFaturaEntrada(false);
     if (error) {
       mostrarErro("Não foi possível registar as entradas", error);
+      return;
+    }
+    if (Number(totalGravado) !== payload.length) {
+      alert(`Atenção: foram confirmadas ${totalGravado || 0} de ${payload.length} entradas. A lista não foi limpa.`);
       return;
     }
 
@@ -283,7 +289,7 @@ export default function Gerente({ onLogout }) {
     setLinhasFaturaEntrada([]);
     setProgressoFaturaEntrada(0);
     await fetchTudo();
-    alert("Entradas registadas com sucesso.");
+    alert(`Entradas registadas com sucesso: ${totalGravado}.`);
   }
 
 
