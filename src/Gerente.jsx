@@ -846,7 +846,15 @@ export default function Gerente({ onLogout }) {
       payload.unidade = getUnidadeByNome(movimentoEdicao.produto);
     }
 
-    const { error } = await supabase.from(tabela).update(payload).eq("id", movimentoEdicao.id);
+    const { error } = await supabase.rpc("gerente_corrigir_movimento", {
+      p_tipo: movimentoEdicao.tipo,
+      p_id: movimentoEdicao.id,
+      p_produto: movimentoEdicao.produto,
+      p_quantidade: quantidade,
+      p_unidade: movimentoEdicao.tipo === "saida" ? getUnidadeByNome(movimentoEdicao.produto) : getUnidadeByNome(movimentoEdicao.produto),
+      p_responsavel: movimentoEdicao.responsavel.trim() || null,
+      p_datahora: dataHora
+    });
     if (error) {
       mostrarErro("Não foi possível guardar a correção", error);
       return;
