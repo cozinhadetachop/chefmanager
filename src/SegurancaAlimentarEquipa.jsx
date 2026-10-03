@@ -48,7 +48,7 @@ export default function SegurancaAlimentarEquipa() {
   const [responsavel, setResponsavel] = useState("");
   const [aGuardar, setAGuardar] = useState(false);
 
-  const [bm, setBm] = useState({ equipamento: "1", refeicao: "almoco", momento: "inicio", tipoMedicao: "alimento", valor: "" });
+  const [bm, setBm] = useState({ equipamento: "1", refeicao: "manha", momento: "inicio", tipoMedicao: "alimento", valor: "" });
   const [oleo, setOleo] = useState({ fritadeira: "1", classificacao: "", temperatura: "", substituicao: false });
 
   useEffect(() => {
@@ -196,8 +196,8 @@ export default function SegurancaAlimentarEquipa() {
           <label>
             <strong>Período</strong>
             <select style={styles.input} value={bm.refeicao} onChange={e => setBm(p => ({ ...p, refeicao: e.target.value }))}>
-              <option value="almoco">Manhã / Almoço</option>
-              <option value="jantar">Noite / Jantar</option>
+              <option value="manha">Manhã</option>
+              <option value="tarde">Tarde</option>
             </select>
           </label>
         </div>
