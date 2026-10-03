@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const styles = {
   card: { border: "1px solid #dfe5da", borderRadius: 18, padding: 18, marginBottom: 14, background: "rgba(255,255,255,.94)", boxShadow: "0 6px 18px rgba(49,67,42,.055)" },
@@ -37,6 +39,59 @@ export default function SegurancaAlimentarGerente() {
     if(!o.error) setOleos(o.data||[]);
   }
 
+  function exportarSelfPDF(){
+    const doc=new jsPDF({orientation:"landscape"});
+    doc.setFontSize(16);
+    doc.text("Cozinha de Tacho - Registo de Temperaturas do Self / Banho-Maria",14,16);
+    doc.setFontSize(10);
+    doc.text("Referencias: Banho-Maria 80-90 C | Interior do alimento >= 65 C",14,23);
+
+    const rows=quente.map(r=>[
+      dataHora(r.registado_em),
+      `Self ${r.equipamento_num}`,
+      r.refeicao==="manha"?"Manhã":r.refeicao==="tarde"?"Tarde":r.refeicao,
+      labelMomento(r.momento),
+      r.temperatura_alimento===null?"—":`${Number(r.temperatura_alimento)} C`,
+      r.temperatura_equipamento===null?"—":`${Number(r.temperatura_equipamento)} C`,
+      r.responsavel||""
+    ]);
+
+    autoTable(doc,{
+      startY:29,
+      head:[["Data/Hora","Self","Período","Momento","Alimento","Banho-Maria","Responsável"]],
+      body:rows,
+      styles:{fontSize:9,cellPadding:3},
+      headStyles:{fontStyle:"bold"}
+    });
+    doc.save("registo-self-banho-maria.pdf");
+  }
+
+  function exportarOleosPDF(){
+    const doc=new jsPDF({orientation:"landscape"});
+    doc.setFontSize(16);
+    doc.text("Cozinha de Tacho - Registo de Controlo dos Oleos de Fritura",14,16);
+    doc.setFontSize(10);
+    doc.text("Temperatura <= 180 C | Rejeitar nos resultados MAU e MUITO MAU",14,23);
+
+    const rows=oleos.map(r=>[
+      dataHora(r.registado_em),
+      `Fritadeira ${r.fritadeira_num}`,
+      labelClass(r.classificacao),
+      r.temperatura===null?"—":`${Number(r.temperatura)} C`,
+      r.substituicao?"Sim":"Não",
+      r.responsavel||""
+    ]);
+
+    autoTable(doc,{
+      startY:29,
+      head:[["Data/Hora","Fritadeira","Resultado","Temperatura","Substituição","Responsável"]],
+      body:rows,
+      styles:{fontSize:9,cellPadding:3},
+      headStyles:{fontStyle:"bold"}
+    });
+    doc.save("registo-oleos-fritura.pdf");
+  }
+
   return <div style={styles.card}>
     <h3 style={{marginTop:0}}>🧪 Registos HACCP</h3>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -44,8 +99,12 @@ export default function SegurancaAlimentarGerente() {
       <button type="button" style={{...styles.button,...(tab==="oleos"?{}:styles.secondary)}} onClick={()=>setTab("oleos")}>🍟 Óleos de fritura</button>
     </div>
 
-    {tab==="quente" && <div style={{overflowX:"auto"}}>
-      <p style={{opacity:.75}}>Referências: equipamento 80–90 °C · interior do alimento ≥65 °C.</p>
+    {tab==="quente" && <div>
+      <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <p style={{opacity:.75,margin:"0 0 10px"}}>Referências: equipamento 80–90 °C · interior do alimento ≥65 °C.</p>
+        <button type="button" style={styles.button} onClick={exportarSelfPDF}>📄 Gerar PDF</button>
+      </div>
+      <div style={{overflowX:"auto"}}>
       <table style={styles.table}>
         <thead><tr>
           <th style={styles.th}>Data/Hora</th><th style={styles.th}>BM</th><th style={styles.th}>Refeição</th><th style={styles.th}>Momento</th>
@@ -70,10 +129,15 @@ export default function SegurancaAlimentarGerente() {
           {!quente.length&&<tr><td style={styles.td} colSpan={7}>Ainda não existem registos.</td></tr>}
         </tbody>
       </table>
+      </div>
     </div>}
 
-    {tab==="oleos" && <div style={{overflowX:"auto"}}>
-      <p style={{opacity:.75}}>Rejeitar nos resultados MAU e MUITO MAU · temperatura ≤180 °C.</p>
+    {tab==="oleos" && <div>
+      <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <p style={{opacity:.75,margin:"0 0 10px"}}>Rejeitar nos resultados MAU e MUITO MAU · temperatura ≤180 °C.</p>
+        <button type="button" style={styles.button} onClick={exportarOleosPDF}>📄 Gerar PDF</button>
+      </div>
+      <div style={{overflowX:"auto"}}>
       <table style={styles.table}>
         <thead><tr>
           <th style={styles.th}>Data/Hora</th><th style={styles.th}>Fritadeira</th><th style={styles.th}>Teste</th>
@@ -96,6 +160,7 @@ export default function SegurancaAlimentarGerente() {
           {!oleos.length&&<tr><td style={styles.td} colSpan={6}>Ainda não existem registos.</td></tr>}
         </tbody>
       </table>
+      </div>
     </div>}
   </div>;
 }
