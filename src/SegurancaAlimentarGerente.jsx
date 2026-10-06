@@ -25,18 +25,33 @@ function labelClass(v) {
 }
 
 export default function SegurancaAlimentarGerente() {
-  const [tab,setTab]=useState("quente");
+  const [tab,setTab]=useState("frio");
+  const [frio,setFrio]=useState([]);
+  const [setorFrio,setSetorFrio]=useState("cozinha");
   const [quente,setQuente]=useState([]);
   const [oleos,setOleos]=useState([]);
+  const [aAtualizar,setAAtualizar]=useState(false);
+  const [erro,setErro]=useState("");
 
   useEffect(()=>{ carregar(); },[]);
   async function carregar(){
-    const [q,o]=await Promise.all([
+    setAAtualizar(true);
+    setErro("");
+    const [f,q,o]=await Promise.all([
+      supabase.rpc("gerente_listar_registos_temperatura"),
       supabase.from("registos_manutencao_quente").select("*").order("registado_em",{ascending:false}).limit(300),
       supabase.from("registos_oleo_fritura").select("*").order("registado_em",{ascending:false}).limit(300)
     ]);
+
+    if(f.error || q.error || o.error){
+      console.error(f.error || q.error || o.error);
+      setErro("Não foi possível carregar todos os registos de temperatura.");
+    }
+
+    if(!f.error) setFrio(f.data||[]);
     if(!q.error) setQuente(q.data||[]);
     if(!o.error) setOleos(o.data||[]);
+    setAAtualizar(false);
   }
 
   function exportarSelfPDF(){
@@ -94,10 +109,48 @@ export default function SegurancaAlimentarGerente() {
 
   return <div style={styles.card}>
     <h3 style={{marginTop:0}}>🧪 Registos HACCP</h3>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+      <button type="button" style={{...styles.button,...(tab==="frio"?{}:styles.secondary)}} onClick={()=>setTab("frio")}>🌡️ Equipamentos</button>
       <button type="button" style={{...styles.button,...(tab==="quente"?{}:styles.secondary)}} onClick={()=>setTab("quente")}>♨️ Self / Banho-Maria</button>
       <button type="button" style={{...styles.button,...(tab==="oleos"?{}:styles.secondary)}} onClick={()=>setTab("oleos")}>🍟 Óleos de fritura</button>
     </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:12}}>
+      {erro ? <span style={{color:"#b42318",fontWeight:700}}>{erro}</span> : <span style={{opacity:.7}}>Registos atualizados diretamente da base de dados.</span>}
+      <button type="button" style={{...styles.button,...styles.secondary}} onClick={carregar} disabled={aAtualizar}>
+        {aAtualizar?"A atualizar…":"↻ Atualizar registos"}
+      </button>
+    </div>
+
+    {tab==="frio" && <div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        <button type="button" style={{...styles.button,...(setorFrio==="cozinha"?{}:styles.secondary)}} onClick={()=>setSetorFrio("cozinha")}>🍳 Cozinha</button>
+        <button type="button" style={{...styles.button,...(setorFrio==="atendimento"?{}:styles.secondary)}} onClick={()=>setSetorFrio("atendimento")}>🛎️ Atendimento</button>
+      </div>
+      <p style={{opacity:.75,margin:"0 0 10px"}}>
+        {frio.filter(r=>r.setor===setorFrio).length} registo(s) nesta área.
+      </p>
+      <div style={{overflowX:"auto"}}>
+        <table style={styles.table}>
+          <thead><tr>
+            <th style={styles.th}>Data/Hora</th>
+            <th style={styles.th}>Momento</th>
+            <th style={styles.th}>Equipamento</th>
+            <th style={styles.th}>Temperatura</th>
+            <th style={styles.th}>Responsável</th>
+          </tr></thead>
+          <tbody>
+            {frio.filter(r=>r.setor===setorFrio).map(r=><tr key={r.id}>
+              <td style={styles.td}>{dataHora(r.registado_em)}</td>
+              <td style={styles.td}>{r.momento==="inicio"?"Início":r.momento==="fim"?"Fim":"—"}</td>
+              <td style={styles.td}>{r.equipamento_nome}</td>
+              <td style={styles.td}>{Number(r.temperatura).toLocaleString("pt-PT",{maximumFractionDigits:1})} °C</td>
+              <td style={styles.td}>{r.responsavel||"—"}</td>
+            </tr>)}
+            {!frio.filter(r=>r.setor===setorFrio).length&&<tr><td style={styles.td} colSpan={5}>Ainda não existem registos nesta área.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>}
 
     {tab==="quente" && <div>
       <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
