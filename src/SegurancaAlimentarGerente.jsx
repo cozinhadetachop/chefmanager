@@ -54,6 +54,17 @@ export default function SegurancaAlimentarGerente() {
     setAAtualizar(false);
   }
 
+  async function eliminarRegisto(tipo,id,descricao){
+    if(!window.confirm(`Eliminar este registo?\n\n${descricao}\n\nEsta ação não pode ser anulada.`)) return;
+    const {error}=await supabase.rpc("gerente_eliminar_registo_temperatura",{p_tipo:tipo,p_id:id});
+    if(error){
+      console.error(error);
+      alert(`Não foi possível eliminar o registo. ${error.message||""}`.trim());
+      return;
+    }
+    await carregar();
+  }
+
   function exportarSelfPDF(){
     const doc=new jsPDF({orientation:"landscape"});
     doc.setFontSize(16);
@@ -137,6 +148,7 @@ export default function SegurancaAlimentarGerente() {
             <th style={styles.th}>Equipamento</th>
             <th style={styles.th}>Temperatura</th>
             <th style={styles.th}>Responsável</th>
+            <th style={styles.th}>Ações</th>
           </tr></thead>
           <tbody>
             {frio.filter(r=>r.setor===setorFrio).map(r=><tr key={r.id}>
@@ -145,8 +157,17 @@ export default function SegurancaAlimentarGerente() {
               <td style={styles.td}>{r.equipamento_nome}</td>
               <td style={styles.td}>{Number(r.temperatura).toLocaleString("pt-PT",{maximumFractionDigits:1})} °C</td>
               <td style={styles.td}>{r.responsavel||"—"}</td>
+              <td style={styles.td}>
+                <button
+                  type="button"
+                  style={{...styles.button,...styles.secondary,minHeight:34,padding:"5px 9px"}}
+                  onClick={()=>eliminarRegisto("equipamento",r.id,`${r.equipamento_nome} · ${Number(r.temperatura).toLocaleString("pt-PT",{maximumFractionDigits:1})} °C · ${dataHora(r.registado_em)}`)}
+                >
+                  🗑️ Eliminar
+                </button>
+              </td>
             </tr>)}
-            {!frio.filter(r=>r.setor===setorFrio).length&&<tr><td style={styles.td} colSpan={5}>Ainda não existem registos nesta área.</td></tr>}
+            {!frio.filter(r=>r.setor===setorFrio).length&&<tr><td style={styles.td} colSpan={6}>Ainda não existem registos nesta área.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -161,7 +182,7 @@ export default function SegurancaAlimentarGerente() {
       <table style={styles.table}>
         <thead><tr>
           <th style={styles.th}>Data/Hora</th><th style={styles.th}>Self</th><th style={styles.th}>Período</th><th style={styles.th}>Momento</th>
-          <th style={styles.th}>Alimento</th><th style={styles.th}>Equip.</th><th style={styles.th}>Responsável</th>
+          <th style={styles.th}>Alimento</th><th style={styles.th}>Equip.</th><th style={styles.th}>Responsável</th><th style={styles.th}>Ações</th>
         </tr></thead>
         <tbody>
           {quente.map(r=>{
@@ -177,9 +198,18 @@ export default function SegurancaAlimentarGerente() {
               <td style={{...styles.td,...(foraAli?{color:"#b42318",fontWeight:700}:{})}}>{ali===null?"—":`${ali} °C`}</td>
               <td style={{...styles.td,...(foraEq?{color:"#b42318",fontWeight:700}:{})}}>{eq===null?"—":`${eq} °C`}</td>
               <td style={styles.td}>{r.responsavel}</td>
+              <td style={styles.td}>
+                <button
+                  type="button"
+                  style={{...styles.button,...styles.secondary,minHeight:34,padding:"5px 9px"}}
+                  onClick={()=>eliminarRegisto("self",r.id,`Self ${r.equipamento_num} · ${r.refeicao==="manha"?"Manhã":"Tarde"} · ${labelMomento(r.momento)} · ${dataHora(r.registado_em)}`)}
+                >
+                  🗑️ Eliminar
+                </button>
+              </td>
             </tr>;
           })}
-          {!quente.length&&<tr><td style={styles.td} colSpan={7}>Ainda não existem registos.</td></tr>}
+          {!quente.length&&<tr><td style={styles.td} colSpan={8}>Ainda não existem registos.</td></tr>}
         </tbody>
       </table>
       </div>
@@ -194,7 +224,7 @@ export default function SegurancaAlimentarGerente() {
       <table style={styles.table}>
         <thead><tr>
           <th style={styles.th}>Data/Hora</th><th style={styles.th}>Fritadeira</th><th style={styles.th}>Teste</th>
-          <th style={styles.th}>Temperatura</th><th style={styles.th}>Substituição</th><th style={styles.th}>Responsável</th>
+          <th style={styles.th}>Temperatura</th><th style={styles.th}>Substituição</th><th style={styles.th}>Responsável</th><th style={styles.th}>Ações</th>
         </tr></thead>
         <tbody>
           {oleos.map(r=>{
@@ -208,9 +238,18 @@ export default function SegurancaAlimentarGerente() {
               <td style={{...styles.td,...(quenteDemais?{color:"#b42318",fontWeight:700}:{})}}>{t===null?"—":`${t} °C`}</td>
               <td style={styles.td}>{r.substituicao?"Sim":"Não"}</td>
               <td style={styles.td}>{r.responsavel}</td>
+              <td style={styles.td}>
+                <button
+                  type="button"
+                  style={{...styles.button,...styles.secondary,minHeight:34,padding:"5px 9px"}}
+                  onClick={()=>eliminarRegisto("oleo",r.id,`Fritadeira ${r.fritadeira_num} · ${labelClass(r.classificacao)} · ${dataHora(r.registado_em)}`)}
+                >
+                  🗑️ Eliminar
+                </button>
+              </td>
             </tr>;
           })}
-          {!oleos.length&&<tr><td style={styles.td} colSpan={6}>Ainda não existem registos.</td></tr>}
+          {!oleos.length&&<tr><td style={styles.td} colSpan={7}>Ainda não existem registos.</td></tr>}
         </tbody>
       </table>
       </div>
