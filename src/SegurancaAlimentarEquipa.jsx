@@ -64,7 +64,7 @@ export default function SegurancaAlimentarEquipa() {
   }, []);
 
   const frio = useMemo(() => equipamentos.filter(e =>
-    e.setor === setor && (e.nome.includes("Câmara") || e.nome.includes("Frigorífica"))
+    e.setor === setor && !/^Self\b|^Fritadeira\b/i.test(e.nome || "")
   ), [equipamentos, setor]);
 
   async function guardarFrio() {
@@ -152,7 +152,7 @@ export default function SegurancaAlimentarEquipa() {
       </div>
 
       {separador === "frio" && <div style={styles.card}>
-        <h3 style={{ marginTop: 0 }}>❄️ Equipamentos de frio</h3>
+        <h3 style={{ marginTop: 0 }}>🌡️ Temperaturas dos equipamentos</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
           <button type="button" style={{ ...styles.button, ...(setor === "cozinha" ? {} : styles.secondary) }} onClick={() => setSetor("cozinha")}>🍳 Cozinha</button>
           <button type="button" style={{ ...styles.button, ...(setor === "atendimento" ? {} : styles.secondary) }} onClick={() => setSetor("atendimento")}>🛎️ Balcão</button>
