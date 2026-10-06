@@ -362,6 +362,25 @@ export default function Gerente({ onLogout }) {
     fetchTemperaturasGerente();
   }, []);
 
+  useEffect(() => {
+    if (area !== "temperaturas") return;
+
+    fetchTemperaturasGerente();
+
+    const atualizarAoVoltar = () => fetchTemperaturasGerente();
+    const atualizarAoFicarVisivel = () => {
+      if (document.visibilityState === "visible") fetchTemperaturasGerente();
+    };
+
+    window.addEventListener("focus", atualizarAoVoltar);
+    document.addEventListener("visibilitychange", atualizarAoFicarVisivel);
+
+    return () => {
+      window.removeEventListener("focus", atualizarAoVoltar);
+      document.removeEventListener("visibilitychange", atualizarAoFicarVisivel);
+    };
+  }, [area]);
+
   async function fetchTemperaturasGerente() {
     const [equipamentosRes, registosRes] = await Promise.all([
       supabase.from("equipamentos_temperatura").select("*").order("setor").order("nome"),
