@@ -145,7 +145,7 @@ export default function SegurancaAlimentarEquipa() {
       <div style={styles.card}>
         <h3 style={{ marginTop: 0 }}>🧪 Segurança alimentar</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-          <button type="button" style={{ ...styles.button, ...(separador === "frio" ? {} : styles.secondary) }} onClick={() => setSeparador("frio")}>❄️ Frio</button>
+          <button type="button" style={{ ...styles.button, ...(separador === "frio" ? {} : styles.secondary) }} onClick={() => setSeparador("frio")}>🌡️ Equipamentos</button>
           <button type="button" style={{ ...styles.button, ...(separador === "quente" ? {} : styles.secondary) }} onClick={() => setSeparador("quente")}>♨️ Self</button>
           <button type="button" style={{ ...styles.button, ...(separador === "oleos" ? {} : styles.secondary) }} onClick={() => setSeparador("oleos")}>🍟 Óleos</button>
         </div>
