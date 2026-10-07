@@ -210,6 +210,14 @@ export default function Gerente({ onLogout }) {
     const n = Number(String(valor ?? "").replace(",", "."));
     return Number.isFinite(n) ? n : NaN;
   }
+
+  function codigoArtigoGuardado(nomeProduto) {
+    const produto = produtos.find(p => p.nome === nomeProduto);
+    if (!produto?.id) return "";
+    const fornecedor = String(produto.procedencia || "").trim();
+    if (!fornecedor) return "";
+    return String(codigosFornecedor[chaveCodigo(produto.id, fornecedor)] || "");
+  }
   function adicionarEntradaProvisoria(item) {
     setEntradasProvisorias(lista => {
       const existente = lista.find(linha => linha.produto === item.produto);
@@ -311,7 +319,10 @@ export default function Gerente({ onLogout }) {
     try {
       const { lerFotografias } = await import("./invoiceOcr");
       const linhas = await lerFotografias(fotografiasEntrada, produtos, setProgressoFaturaEntrada);
-      setLinhasFaturaEntrada(linhas);
+      setLinhasFaturaEntrada(linhas.map(linha => ({
+        ...linha,
+        codigoArtigo: linha.codigoArtigo || codigoArtigoGuardado(linha.produto)
+      })));
       if (!linhas.length) alert("Não foi possível identificar linhas de produtos. Podes continuar com a entrada manual.");
     } catch (error) {
       console.error(error);
@@ -322,7 +333,13 @@ export default function Gerente({ onLogout }) {
   }
 
   function atualizarLinhaFaturaEntrada(id, campo, valor) {
-    setLinhasFaturaEntrada(linhas => linhas.map(linha => linha.id === id ? { ...linha, [campo]: valor } : linha));
+    setLinhasFaturaEntrada(linhas => linhas.map(linha => {
+      if (linha.id !== id) return linha;
+      if (campo === "produto") {
+        return { ...linha, produto: valor, codigoArtigo: codigoArtigoGuardado(valor) };
+      }
+      return { ...linha, [campo]: valor };
+    }));
   }
 
   function registarEntradasDaFatura() {
@@ -1695,7 +1712,14 @@ export default function Gerente({ onLogout }) {
             <select
               style={{ ...styles.input, marginTop: 6 }}
               value={entradaNova.produto}
-              onChange={e => setEntradaNova({ ...entradaNova, produto: e.target.value })}
+              onChange={e => {
+                const produto = e.target.value;
+                setEntradaNova(prev => ({
+                  ...prev,
+                  produto,
+                  codigoArtigo: codigoArtigoGuardado(produto)
+                }));
+              }}
               required
             >
               <option value="">Selecionar produto…</option>
@@ -1717,7 +1741,12 @@ export default function Gerente({ onLogout }) {
 
           <label>
             <span style={{ display: "block", marginBottom: 5, fontSize: 13, fontWeight: 700 }}>N.º artigo</span>
-            <input style={styles.input} type="text" value={entradaNova.codigoArtigo} onChange={e => setEntradaNova({ ...entradaNova, codigoArtigo: e.target.value })} placeholder="Código do fornecedor" />
+            <input style={styles.input} type="text" value={entradaNova.codigoArtigo} onChange={e => setEntradaNova({ ...entradaNova, codigoArtigo: e.target.value })} placeholder={entradaNova.produto && codigoArtigoGuardado(entradaNova.produto) ? "Código já assumido" : "Só preencher se ainda não existir"} />
+            {entradaNova.produto && codigoArtigoGuardado(entradaNova.produto) && (
+              <div style={{ fontSize: 12, opacity: .72, marginTop: 4 }}>
+                Código guardado: <strong>{codigoArtigoGuardado(entradaNova.produto)}</strong>. Altera apenas se for diferente.
+              </div>
+            )}
           </label>
 
           <button style={styles.button}>Adicionar</button>
@@ -1748,7 +1777,7 @@ export default function Gerente({ onLogout }) {
         <div style={styles.card}>
           <h3 className="operacao-section-title">Validar leitura da fatura</h3>
           <div style={{ padding: 12, borderRadius: 10, background: "#fff8e1", color: "#684f00", marginBottom: 10 }}>
-            Compara todas as linhas com a fatura antes de confirmar. Confirma produto, quantidade e unidade do stock; embalagens podem exigir conversão. O valor unitário e o número do artigo podem ser corrigidos antes de adicionar.
+            Compara todas as linhas com a fatura antes de confirmar. O número do artigo já guardado é assumido automaticamente; só o deves alterar se nesta fatura for diferente.
           </div>
 
           {linhasFaturaEntrada.map(linha => (
