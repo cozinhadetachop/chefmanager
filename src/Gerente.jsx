@@ -763,8 +763,19 @@ export default function Gerente({ onLogout }) {
     }
     if (!motivoInventario.trim()) return alert("Indica o motivo do inventário antes de gravar.");
 
+    const produtosAZero = rows.filter(r => r.quantidade === 0);
+    if (produtosAZero.length) {
+      const nomesZero = produtosAZero.slice(0, 20).map(r => `• ${r.produto}`).join("\n");
+      const confirmarZeros = window.confirm(
+        `⚠ Vais gravar ZERO em ${produtosAZero.length} produto(s):\n\n${nomesZero}` +
+        (produtosAZero.length > 20 ? `\n… e mais ${produtosAZero.length - 20}` : "") +
+        `\n\nConfirma apenas se estes produtos foram realmente contados e estão a zero.`
+      );
+      if (!confirmarZeros) return;
+    }
+
     const confirmarParcial = window.confirm(
-      `Vais atualizar o inventário de ${rows.length} produto(s).\n\nOs restantes produtos não serão alterados.\n\nContinuar?`
+      `Vais atualizar o inventário de ${rows.length} produto(s).\n\nOs campos vazios NÃO serão alterados.\n\nContinuar?`
     );
     if (!confirmarParcial) return;
 
@@ -1187,7 +1198,7 @@ export default function Gerente({ onLogout }) {
       <div style={{ ...styles.card, borderColor: "#4caf50" }}>
         <h3 className="operacao-section-title">🧾 Inventário</h3>
         <p className="operacao-muted">
-          Pode ser total ou parcial. Só os produtos que preencheres serão atualizados; os restantes não são alterados.
+          Pode ser total ou parcial. Só os produtos em que escreveres uma quantidade serão atualizados; os campos vazios mantêm o stock existente. Para indicar stock zero, escreve 0 explicitamente.
         </p>
 
         {!modoInventarioMensal ? (
@@ -1289,7 +1300,7 @@ export default function Gerente({ onLogout }) {
                           step="0.001"
                           value={inventarioEdicao[p.nome] ?? ""}
                           onChange={e => setInventarioEdicao(prev => ({ ...prev, [p.nome]: e.target.value }))}
-                          placeholder="0"
+                          placeholder="Deixar vazio = não alterar"
                         />
                       </td>
                     </tr>
