@@ -423,16 +423,6 @@ export default function Chef({ onLogout }) {
     return lista.filter(p => `${p.nome || ""} ${p.procedencia || ""}`.toLocaleLowerCase("pt-PT").includes(termo));
   }, [produtos, pesquisaInventario]);
 
-  function preencherInventarioVaziosComZero() {
-    const proximo = { ...inventario };
-    produtos.forEach(p => {
-      if (proximo[p.nome] === "" || proximo[p.nome] === undefined || proximo[p.nome] === null) {
-        proximo[p.nome] = "0";
-      }
-    });
-    setInventario(proximo);
-  }
-
   async function sincronizarInventarioPendente(pendenteForcado = null) {
     const pendente = pendenteForcado || inventarioPendente;
     if (!pendente || !navigator.onLine) return false;
@@ -469,12 +459,25 @@ export default function Chef({ onLogout }) {
       return { produto: p.nome, quantidade };
     }).filter(Boolean);
 
-    if (!linhas.length || linhas.length !== produtos.length) {
-      alert("Preenche a contagem de todos os produtos antes de confirmar o inventário.");
+    if (!linhas.length) {
+      alert("Preenche pelo menos um produto antes de confirmar o inventário.");
       return;
     }
 
-    if (!window.confirm(`Confirmar inventário físico de ${linhas.length} produto(s)?`)) return;
+    const produtosAZero = linhas.filter(linha => linha.quantidade === 0);
+    if (produtosAZero.length) {
+      const nomes = produtosAZero.slice(0, 20).map(linha => `• ${linha.produto}`).join("\n");
+      const confirmarZero = window.confirm(
+        `⚠ Vais gravar ZERO em ${produtosAZero.length} produto(s):\n\n${nomes}` +
+        (produtosAZero.length > 20 ? `\n… e mais ${produtosAZero.length - 20}` : "") +
+        `\n\nConfirma apenas se estes produtos foram realmente contados e estão a zero.`
+      );
+      if (!confirmarZero) return;
+    }
+
+    if (!window.confirm(
+      `Confirmar inventário parcial de ${linhas.length} produto(s)?\n\nOs restantes produtos não serão alterados.`
+    )) return;
 
     const iniciadoEm = inventarioIniciadoEm || new Date().toISOString();
 
@@ -647,7 +650,7 @@ export default function Chef({ onLogout }) {
             <CabecalhoArea titulo="Fazer inventário" />
             <section style={estilos.card}>
               <div style={estilos.nota}>
-                Inventário físico: conta o que existe realmente. Nesta área não são apresentados preços, valores totais nem o stock atual.
+                Inventário físico total ou parcial: conta apenas os produtos que pretendes atualizar. Nesta área não são apresentados preços, valores totais nem o stock atual. Campos vazios não alteram nada.
               </div>
 
               <div style={{
@@ -689,9 +692,6 @@ export default function Chef({ onLogout }) {
                   onChange={e => setPesquisaInventario(e.target.value)}
                   placeholder="Pesquisar produto…"
                 />
-                <button type="button" style={estilos.secundario} onClick={preencherInventarioVaziosComZero}>
-                  Preencher vazios com 0
-                </button>
               </div>
 
               <div style={estilos.tabelaWrap}>
@@ -717,7 +717,7 @@ export default function Chef({ onLogout }) {
                             step="0.001"
                             value={inventario[produto.nome] ?? ""}
                             onChange={e => setInventario(atual => ({ ...atual, [produto.nome]: e.target.value }))}
-                            placeholder="0"
+                            placeholder="Vazio = não alterar"
                           />
                         </td>
                       </tr>
@@ -732,7 +732,7 @@ export default function Chef({ onLogout }) {
                 disabled={aGuardarInventario}
                 onClick={gravarInventarioChef}
               >
-                {aGuardarInventario ? "A gravar…" : "Confirmar inventário"}
+                {aGuardarInventario ? "A gravar…" : "Confirmar inventário parcial"}
               </button>
             </section>
           </>
