@@ -136,6 +136,9 @@ export default function Chef({ onLogout }) {
   });
   const [online, setOnline] = useState(() => navigator.onLine);
   const [pesquisaInventario, setPesquisaInventario] = useState("");
+  const [motivoInventario, setMotivoInventario] = useState(() =>
+    window.localStorage.getItem("chef-inventario-motivo") || ""
+  );
   const [aGuardarInventario, setAGuardarInventario] = useState(false);
 
   useEffect(() => {
@@ -176,6 +179,14 @@ export default function Chef({ onLogout }) {
       window.localStorage.removeItem("chef-inventario-pendente");
     }
   }, [inventarioPendente]);
+
+  useEffect(() => {
+    if (motivoInventario) {
+      window.localStorage.setItem("chef-inventario-motivo", motivoInventario);
+    } else {
+      window.localStorage.removeItem("chef-inventario-motivo");
+    }
+  }, [motivoInventario]);
 
   async function carregarStock() {
     setACarregar(true);
@@ -430,7 +441,8 @@ export default function Chef({ onLogout }) {
     setAGuardarInventario(true);
     const { error } = await supabase.rpc("chef_sincronizar_inventario_offline", {
       p_itens: pendente.itens,
-      p_iniciado_em: pendente.iniciadoEm
+      p_iniciado_em: pendente.iniciadoEm,
+      p_motivo: pendente.motivo
     });
     setAGuardarInventario(false);
 
@@ -445,6 +457,7 @@ export default function Chef({ onLogout }) {
     setInventarioPendente(null);
     setInventario({});
     setInventarioIniciadoEm("");
+    setMotivoInventario("");
     setPesquisaInventario("");
     await carregarStock();
     alert("✅ Inventário offline sincronizado com sucesso.");
@@ -461,6 +474,11 @@ export default function Chef({ onLogout }) {
 
     if (!linhas.length) {
       alert("Preenche pelo menos um produto antes de confirmar o inventário.");
+      return;
+    }
+
+    if (!motivoInventario.trim()) {
+      alert("Indica o motivo do inventário antes de confirmar.");
       return;
     }
 
@@ -485,6 +503,7 @@ export default function Chef({ onLogout }) {
       const pendente = {
         itens: linhas,
         iniciadoEm,
+        motivo: motivoInventario.trim(),
         criadoEm: new Date().toISOString()
       };
       setInventarioPendente(pendente);
@@ -496,7 +515,10 @@ export default function Chef({ onLogout }) {
     }
 
     setAGuardarInventario(true);
-    const { error } = await supabase.rpc("chef_gravar_inventario", { p_itens: linhas });
+    const { error } = await supabase.rpc("chef_gravar_inventario", {
+      p_itens: linhas,
+      p_motivo: motivoInventario.trim()
+    });
     setAGuardarInventario(false);
 
     if (error) {
@@ -504,6 +526,7 @@ export default function Chef({ onLogout }) {
       const pendente = {
         itens: linhas,
         iniciadoEm,
+        motivo: motivoInventario.trim(),
         criadoEm: new Date().toISOString()
       };
       setInventarioPendente(pendente);
@@ -513,6 +536,7 @@ export default function Chef({ onLogout }) {
 
     setInventario({});
     setInventarioIniciadoEm("");
+    setMotivoInventario("");
     setPesquisaInventario("");
     await carregarStock();
     alert("Inventário gravado com sucesso.");
@@ -693,6 +717,19 @@ export default function Chef({ onLogout }) {
                   placeholder="Pesquisar produto…"
                 />
               </div>
+
+              <label style={{ display: "block", marginBottom: 12 }}>
+                <span style={estilos.etiqueta}>Motivo do inventário</span>
+                <input
+                  style={estilos.input}
+                  type="text"
+                  maxLength={500}
+                  value={motivoInventario}
+                  onChange={e => setMotivoInventario(e.target.value)}
+                  placeholder="Ex.: Inventário parcial de congelados / contagem do armazém"
+                  required
+                />
+              </label>
 
               <div style={estilos.tabelaWrap}>
                 <table style={estilos.tabela}>
