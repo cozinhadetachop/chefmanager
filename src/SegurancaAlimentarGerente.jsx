@@ -65,6 +65,41 @@ export default function SegurancaAlimentarGerente() {
     await carregar();
   }
 
+  function exportarEquipamentosPDF(){
+    const lista=frio.filter(r=>r.setor===setorFrio);
+    if(!lista.length){
+      alert("Não existem registos nesta área para exportar.");
+      return;
+    }
+
+    const tituloSetor=setorFrio==="cozinha"?"Cozinha":"Balcão / Atendimento";
+    const ficheiro=setorFrio==="cozinha"
+      ?"registo-temperaturas-cozinha.pdf"
+      :"registo-temperaturas-balcao.pdf";
+
+    const doc=new jsPDF({orientation:"landscape"});
+    doc.setFontSize(16);
+    doc.text(`Cozinha de Tacho - Registo de Temperaturas - ${tituloSetor}`,14,16);
+
+    const rows=lista.map(r=>[
+      dataHora(r.registado_em),
+      r.momento==="inicio"?"Início":r.momento==="fim"?"Fim":"—",
+      r.equipamento_nome||"",
+      `${Number(r.temperatura).toLocaleString("pt-PT",{maximumFractionDigits:1})} C`,
+      r.responsavel||""
+    ]);
+
+    autoTable(doc,{
+      startY:24,
+      head:[["Data/Hora","Momento","Equipamento","Temperatura","Responsável"]],
+      body:rows,
+      styles:{fontSize:9,cellPadding:3},
+      headStyles:{fontStyle:"bold"}
+    });
+
+    doc.save(ficheiro);
+  }
+
   function exportarSelfPDF(){
     const doc=new jsPDF({orientation:"landscape"});
     doc.setFontSize(16);
@@ -137,9 +172,14 @@ export default function SegurancaAlimentarGerente() {
         <button type="button" style={{...styles.button,...(setorFrio==="cozinha"?{}:styles.secondary)}} onClick={()=>setSetorFrio("cozinha")}>🍳 Cozinha</button>
         <button type="button" style={{...styles.button,...(setorFrio==="atendimento"?{}:styles.secondary)}} onClick={()=>setSetorFrio("atendimento")}>🛎️ Atendimento</button>
       </div>
-      <p style={{opacity:.75,margin:"0 0 10px"}}>
-        {frio.filter(r=>r.setor===setorFrio).length} registo(s) nesta área.
-      </p>
+      <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:10}}>
+        <p style={{opacity:.75,margin:0}}>
+          {frio.filter(r=>r.setor===setorFrio).length} registo(s) nesta área.
+        </p>
+        <button type="button" style={styles.button} onClick={exportarEquipamentosPDF}>
+          📄 Gerar PDF {setorFrio==="cozinha"?"Cozinha":"Balcão"}
+        </button>
+      </div>
       <div style={{overflowX:"auto"}}>
         <table style={styles.table}>
           <thead><tr>
