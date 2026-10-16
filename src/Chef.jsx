@@ -123,13 +123,59 @@ export default function Chef({ onLogout }) {
   const [aLer, setALer] = useState(false);
   const [progresso, setProgresso] = useState(0);
 
-  const [inventario, setInventario] = useState({});
+  const [inventario, setInventario] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("chef-inventario-rascunho") || "{}"); }
+    catch { return {}; }
+  });
+  const [inventarioIniciadoEm, setInventarioIniciadoEm] = useState(() =>
+    window.localStorage.getItem("chef-inventario-iniciado-em") || ""
+  );
+  const [inventarioPendente, setInventarioPendente] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("chef-inventario-pendente") || "null"); }
+    catch { return null; }
+  });
+  const [online, setOnline] = useState(() => navigator.onLine);
   const [pesquisaInventario, setPesquisaInventario] = useState("");
   const [aGuardarInventario, setAGuardarInventario] = useState(false);
 
   useEffect(() => {
     carregarStock();
+
+    const aoFicarOnline = () => {
+      setOnline(true);
+      carregarStock();
+      sincronizarInventarioPendente();
+    };
+    const aoFicarOffline = () => setOnline(false);
+
+    window.addEventListener("online", aoFicarOnline);
+    window.addEventListener("offline", aoFicarOffline);
+
+    return () => {
+      window.removeEventListener("online", aoFicarOnline);
+      window.removeEventListener("offline", aoFicarOffline);
+    };
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("chef-inventario-rascunho", JSON.stringify(inventario));
+  }, [inventario]);
+
+  useEffect(() => {
+    if (inventarioIniciadoEm) {
+      window.localStorage.setItem("chef-inventario-iniciado-em", inventarioIniciadoEm);
+    } else {
+      window.localStorage.removeItem("chef-inventario-iniciado-em");
+    }
+  }, [inventarioIniciadoEm]);
+
+  useEffect(() => {
+    if (inventarioPendente) {
+      window.localStorage.setItem("chef-inventario-pendente", JSON.stringify(inventarioPendente));
+    } else {
+      window.localStorage.removeItem("chef-inventario-pendente");
+    }
+  }, [inventarioPendente]);
 
   async function carregarStock() {
     setACarregar(true);
@@ -138,13 +184,23 @@ export default function Chef({ onLogout }) {
 
     if (error) {
       console.error(error);
-      setErro("Não foi possível carregar o stock. Tenta novamente.");
+      try {
+        const cache = JSON.parse(window.localStorage.getItem("chef-produtos-cache") || "[]");
+        if (Array.isArray(cache) && cache.length) {
+          setProdutos(cache);
+          setACarregar(false);
+          return;
+        }
+      } catch {}
+      setErro("Não foi possível carregar o stock e ainda não existe catálogo guardado neste tablet.");
       setACarregar(false);
       return;
     }
 
-    const lista = Array.isArray(data) ? data : [];
-    setProdutos(lista.sort((a, b) => String(a.nome).localeCompare(String(b.nome))));
+    const lista = (Array.isArray(data) ? data : [])
+      .sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-PT"));
+    setProdutos(lista);
+    window.localStorage.setItem("chef-produtos-cache", JSON.stringify(lista));
     setACarregar(false);
   }
 
@@ -167,6 +223,9 @@ export default function Chef({ onLogout }) {
     setArea(novaArea);
     setPesquisa("");
     setErro("");
+    if (novaArea === "inventario" && !inventarioIniciadoEm) {
+      setInventarioIniciadoEm(new Date().toISOString());
+    }
   }
 
   function guardarFavoritos(lista) {
@@ -374,6 +433,34 @@ export default function Chef({ onLogout }) {
     setInventario(proximo);
   }
 
+  async function sincronizarInventarioPendente(pendenteForcado = null) {
+    const pendente = pendenteForcado || inventarioPendente;
+    if (!pendente || !navigator.onLine) return false;
+
+    setAGuardarInventario(true);
+    const { error } = await supabase.rpc("chef_sincronizar_inventario_offline", {
+      p_itens: pendente.itens,
+      p_iniciado_em: pendente.iniciadoEm
+    });
+    setAGuardarInventario(false);
+
+    if (error) {
+      console.error(error);
+      if (String(error.message || "").includes("INVENTARIO_ALTERADO_DEPOIS_INICIO")) {
+        alert("⚠️ O inventário não foi sincronizado porque alguns destes produtos foram atualizados depois de esta contagem ter começado. O inventário offline continua guardado neste tablet para revisão.");
+      }
+      return false;
+    }
+
+    setInventarioPendente(null);
+    setInventario({});
+    setInventarioIniciadoEm("");
+    setPesquisaInventario("");
+    await carregarStock();
+    alert("✅ Inventário offline sincronizado com sucesso.");
+    return true;
+  }
+
   async function gravarInventarioChef() {
     const linhas = produtos.map(p => {
       const raw = inventario[p.nome];
@@ -383,11 +470,27 @@ export default function Chef({ onLogout }) {
     }).filter(Boolean);
 
     if (!linhas.length || linhas.length !== produtos.length) {
-      alert("Preenche a contagem de todos os produtos antes de gravar o inventário.");
+      alert("Preenche a contagem de todos os produtos antes de confirmar o inventário.");
       return;
     }
 
     if (!window.confirm(`Confirmar inventário físico de ${linhas.length} produto(s)?`)) return;
+
+    const iniciadoEm = inventarioIniciadoEm || new Date().toISOString();
+
+    if (!navigator.onLine) {
+      const pendente = {
+        itens: linhas,
+        iniciadoEm,
+        criadoEm: new Date().toISOString()
+      };
+      setInventarioPendente(pendente);
+      setInventario({});
+      setInventarioIniciadoEm("");
+      setPesquisaInventario("");
+      alert("📴 Sem internet. O inventário ficou guardado neste tablet e será sincronizado quando a ligação regressar.");
+      return;
+    }
 
     setAGuardarInventario(true);
     const { error } = await supabase.rpc("chef_gravar_inventario", { p_itens: linhas });
@@ -395,11 +498,18 @@ export default function Chef({ onLogout }) {
 
     if (error) {
       console.error(error);
-      alert("Não foi possível gravar o inventário.");
+      const pendente = {
+        itens: linhas,
+        iniciadoEm,
+        criadoEm: new Date().toISOString()
+      };
+      setInventarioPendente(pendente);
+      alert("Não foi possível enviar o inventário. A contagem ficou guardada neste tablet para sincronizar depois.");
       return;
     }
 
     setInventario({});
+    setInventarioIniciadoEm("");
     setPesquisaInventario("");
     await carregarStock();
     alert("Inventário gravado com sucesso.");
@@ -539,6 +649,37 @@ export default function Chef({ onLogout }) {
               <div style={estilos.nota}>
                 Inventário físico: conta o que existe realmente. Nesta área não são apresentados preços, valores totais nem o stock atual.
               </div>
+
+              <div style={{
+                marginTop: 10,
+                padding: 12,
+                borderRadius: 10,
+                background: online ? "#eef7ea" : "#fff1f0",
+                fontWeight: 700
+              }}>
+                {online
+                  ? "🟢 Com internet — a contagem também fica guardada neste tablet enquanto trabalhas."
+                  : "🔴 Offline — podes continuar a contar. Os valores ficam guardados neste tablet."}
+              </div>
+
+              {inventarioPendente && (
+                <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: "#fff8e1" }}>
+                  <strong>🟠 Inventário por sincronizar</strong>
+                  <div style={{ marginTop: 5, fontSize: 13 }}>
+                    {inventarioPendente.itens?.length || 0} produto(s) guardado(s) neste tablet.
+                  </div>
+                  {online && (
+                    <button
+                      type="button"
+                      style={{ ...estilos.botao, marginTop: 8 }}
+                      disabled={aGuardarInventario}
+                      onClick={() => sincronizarInventarioPendente()}
+                    >
+                      {aGuardarInventario ? "A sincronizar…" : "Sincronizar agora"}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
                 <input
