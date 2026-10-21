@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const styles = {
   card: { border: "1px solid #dfe5da", borderRadius: 18, padding: 18, marginBottom: 14, background: "rgba(255,255,255,.94)", boxShadow: "0 6px 18px rgba(49,67,42,.055)" },
@@ -36,6 +38,75 @@ export default function RegistosHACCPGerente(){
     (!area||r.area===area)&&(!freq||r.frequencia===freq)&&(!data||r.data===data)
   ),[higiene,area,freq,data]);
 
+  function exportarHigienizacaoPDF(){
+    if(!higieneFiltrada.length){
+      alert("Não existem registos de higienização com estes filtros.");
+      return;
+    }
+
+    const doc=new jsPDF({orientation:"landscape"});
+    doc.setFontSize(16);
+    doc.text("Cozinha de Tacho - Registo de Higienização",14,16);
+
+    const filtros=[
+      area ? `Área: ${labelArea(area)}` : "Área: Todas",
+      freq ? `Frequência: ${labelFreq(freq)}` : "Frequência: Todas",
+      data ? `Data: ${new Date(data+"T00:00:00").toLocaleDateString("pt-PT")}` : "Data: Todas"
+    ].join(" | ");
+
+    doc.setFontSize(9);
+    doc.text(filtros,14,23);
+
+    const rows=higieneFiltrada.map(r=>[
+      new Date(r.data+"T00:00:00").toLocaleDateString("pt-PT"),
+      labelArea(r.area),
+      labelFreq(r.frequencia),
+      r.tarefa||"",
+      r.responsavel||""
+    ]);
+
+    autoTable(doc,{
+      startY:29,
+      head:[["Data","Área","Frequência","Tarefa","Responsável"]],
+      body:rows,
+      styles:{fontSize:8,cellPadding:3},
+      headStyles:{fontStyle:"bold"},
+      columnStyles:{3:{cellWidth:110}}
+    });
+
+    doc.save("registo-higienizacao.pdf");
+  }
+
+  function exportarSobremesasPDF(){
+    if(!sobremesas.length){
+      alert("Não existem registos de sobremesas para exportar.");
+      return;
+    }
+
+    const doc=new jsPDF({orientation:"landscape"});
+    doc.setFontSize(16);
+    doc.text("Cozinha de Tacho - Rastreabilidade de Sobremesas",14,16);
+
+    const rows=sobremesas.map(r=>[
+      r.identificacao||"",
+      new Date(r.data_preparacao+"T00:00:00").toLocaleDateString("pt-PT"),
+      new Date(r.validade+"T00:00:00").toLocaleDateString("pt-PT"),
+      r.quantidade_unidades??"—",
+      r.stock??"—",
+      r.responsavel||""
+    ]);
+
+    autoTable(doc,{
+      startY:24,
+      head:[["Identificação","Preparação","Validade","Quantidade","Stock","Responsável"]],
+      body:rows,
+      styles:{fontSize:9,cellPadding:3},
+      headStyles:{fontStyle:"bold"}
+    });
+
+    doc.save("rastreabilidade-sobremesas.pdf");
+  }
+
   return <div style={styles.card}>
     <h3 style={{marginTop:0}}>📋 Registos HACCP</h3>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -52,6 +123,9 @@ export default function RegistosHACCPGerente(){
           <option value="">Todas as frequências</option><option value="diario">Diário / Quando utilizado</option><option value="semanal">Semanal</option><option value="mensal">Mensal</option>
         </select>
         <input style={styles.input} type="date" value={data} onChange={e=>setData(e.target.value)} />
+      </div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+        <button type="button" style={styles.button} onClick={exportarHigienizacaoPDF}>📄 Gerar PDF Higienização</button>
       </div>
       <div style={{overflowX:"auto"}}>
         <table style={styles.table}>
@@ -70,7 +144,11 @@ export default function RegistosHACCPGerente(){
       </div>
     </>}
 
-    {tab==="sobremesas" && <div style={{overflowX:"auto"}}>
+    {tab==="sobremesas" && <>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+        <button type="button" style={styles.button} onClick={exportarSobremesasPDF}>📄 Gerar PDF Sobremesas</button>
+      </div>
+      <div style={{overflowX:"auto"}}>
       <table style={styles.table}>
         <thead><tr>
           <th style={styles.th}>Identificação</th><th style={styles.th}>Preparação</th><th style={styles.th}>Validade</th>
@@ -88,6 +166,7 @@ export default function RegistosHACCPGerente(){
           {!sobremesas.length&&<tr><td style={styles.td} colSpan={6}>Ainda não existem registos.</td></tr>}
         </tbody>
       </table>
-    </div>}
+      </div>
+    </>}
   </div>;
 }
