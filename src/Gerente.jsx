@@ -115,6 +115,19 @@ function mostrarErro(acao, erro) {
   window.alert(`${acao}: ${erro?.message || "Ocorreu um erro inesperado. Tenta novamente."}`);
 }
 
+const GERENTE_INVENTARIO_RASCUNHO_KEY = "gerente-inventario-rascunho";
+
+function lerRascunhoInventarioGerente() {
+  try {
+    const raw = localStorage.getItem(GERENTE_INVENTARIO_RASCUNHO_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Gerente({ onLogout }) {
   /* ===== ESTADOS ===== */
   const [produtos, setProdutos] = useState([]);
@@ -176,12 +189,22 @@ export default function Gerente({ onLogout }) {
   const [aRegistarFaturaEntrada, setARegistarFaturaEntrada] = useState(false);
 
   /* ✅ INVENTÁRIO MENSAL (RÁPIDO) */
-  const [modoInventarioMensal, setModoInventarioMensal] = useState(false);
-  const [inventarioMes, setInventarioMes] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
-  const [inventarioEdicao, setInventarioEdicao] = useState({}); // { produto: "12.3" }
-  const [inventarioColar, setInventarioColar] = useState("");
+  const [rascunhoInventarioInicial] = useState(() => lerRascunhoInventarioGerente());
+  const [modoInventarioMensal, setModoInventarioMensal] = useState(() => Boolean(rascunhoInventarioInicial));
+  const [inventarioMes, setInventarioMes] = useState(() =>
+    rascunhoInventarioInicial?.mes || new Date().toISOString().slice(0, 7)
+  );
+  const [inventarioEdicao, setInventarioEdicao] = useState(() =>
+    rascunhoInventarioInicial?.itens && typeof rascunhoInventarioInicial.itens === "object"
+      ? rascunhoInventarioInicial.itens
+      : {}
+  );
+  const [inventarioColar, setInventarioColar] = useState(() => rascunhoInventarioInicial?.colar || "");
   const [inventarioFiltro, setInventarioFiltro] = useState("");
-  const [motivoInventario, setMotivoInventario] = useState("");
+  const [motivoInventario, setMotivoInventario] = useState(() => rascunhoInventarioInicial?.motivo || "");
+  const [rascunhoInventarioGuardadoEm, setRascunhoInventarioGuardadoEm] = useState(
+    () => rascunhoInventarioInicial?.guardadoEm || ""
+  );
 
   /* ===== FILTROS (INTERVALO) ===== */
   const [filtroEntradaDe, setFiltroEntradaDe] = useState("");
@@ -533,6 +556,51 @@ export default function Gerente({ onLogout }) {
     setCodigosFornecedor(prev => ({ ...prev, [chave]: valor }));
   }
 
+  useEffect(() => {
+    const temValores = Object.values(inventarioEdicao || {}).some(
+      v => v !== "" && v !== null && typeof v !== "undefined"
+    );
+    const deveGuardar =
+      modoInventarioMensal &&
+      (temValores || motivoInventario.trim() || inventarioColar.trim());
+
+    if (!deveGuardar) return;
+
+    const guardadoEm = new Date().toISOString();
+    try {
+      localStorage.setItem(
+        GERENTE_INVENTARIO_RASCUNHO_KEY,
+        JSON.stringify({
+          mes: inventarioMes,
+          itens: inventarioEdicao,
+          colar: inventarioColar,
+          motivo: motivoInventario,
+          guardadoEm
+        })
+      );
+      setRascunhoInventarioGuardadoEm(guardadoEm);
+    } catch (error) {
+      console.warn("Não foi possível guardar o rascunho do inventário:", error);
+    }
+  }, [modoInventarioMensal, inventarioMes, inventarioEdicao, inventarioColar, motivoInventario]);
+
+  function apagarRascunhoInventarioGerente() {
+    try {
+      localStorage.removeItem(GERENTE_INVENTARIO_RASCUNHO_KEY);
+    } catch {}
+    setRascunhoInventarioGuardadoEm("");
+  }
+
+  function descartarRascunhoInventarioGerente() {
+    if (!window.confirm("Descartar o rascunho atual do inventário? As quantidades ainda não gravadas serão apagadas deste dispositivo.")) return;
+    apagarRascunhoInventarioGerente();
+    setInventarioEdicao({});
+    setInventarioColar("");
+    setMotivoInventario("");
+    setInventarioFiltro("");
+    setModoInventarioMensal(false);
+  }
+
   async function fetchTudo() {
     setErroStock("");
     // O Gerente e o Chef recebem as mesmas quantidades calculadas no Supabase.
@@ -647,8 +715,17 @@ export default function Gerente({ onLogout }) {
 
   /* ✅ INVENTÁRIO MENSAL (RÁPIDO) - HELPERS */
   function iniciarInventarioMensal() {
-    // Inventário pode ser total ou parcial.
-    // Começa vazio para garantir que apenas os produtos efetivamente contados são atualizados.
+    const rascunho = lerRascunhoInventarioGerente();
+    if (rascunho?.itens && typeof rascunho.itens === "object") {
+      setInventarioEdicao(rascunho.itens);
+      setInventarioMes(rascunho.mes || new Date().toISOString().slice(0, 7));
+      setInventarioColar(rascunho.colar || "");
+      setMotivoInventario(rascunho.motivo || "");
+      setRascunhoInventarioGuardadoEm(rascunho.guardadoEm || "");
+      setModoInventarioMensal(true);
+      return;
+    }
+
     const base = {};
     produtos.forEach(p => {
       base[p.nome] = "";
@@ -825,6 +902,9 @@ export default function Gerente({ onLogout }) {
       alert(`✅ Inventário atualizado: ${rows.length} produto(s). Os restantes mantiveram-se inalterados.`);
     }
 
+    apagarRascunhoInventarioGerente();
+    setInventarioEdicao({});
+    setInventarioColar("");
     setModoInventarioMensal(false);
     setMotivoInventario("");
   }
@@ -1252,6 +1332,16 @@ export default function Gerente({ onLogout }) {
               <button style={{ ...styles.button, ...styles.danger }} type="button" onClick={fecharInventarioMensal}>
                 ✖ Fechar
               </button>
+              <button style={{ ...styles.button, ...styles.secondary }} type="button" onClick={descartarRascunhoInventarioGerente}>
+                🗑️ Descartar rascunho
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 10, padding: "9px 11px", borderRadius: 10, background: "#f3f7ef", border: "1px solid #d8e2d2", fontSize: 13 }}>
+              💾 Gravação automática ativa neste dispositivo
+              {rascunhoInventarioGuardadoEm
+                ? ` · última gravação às ${new Date(rascunhoInventarioGuardadoEm).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`
+                : ""}
             </div>
 
             <div style={{ marginBottom: 8 }}>
