@@ -586,17 +586,12 @@ export default function Gerente({ onLogout }) {
     setStockCarregado(true);
   }
 
-  /* ===== INVENTÁRIO TEÓRICO ===== */
+  /* ===== STOCK TEÓRICO PARA INVENTÁRIO ===== */
+  // Mesmo cálculo do stock atual: último inventário físico
+  // + entradas posteriores - saídas posteriores.
   const inventarioTeorico = useMemo(() => {
-    const inv = {};
-    entradas.forEach(e => {
-      inv[e.produto] = (inv[e.produto] || 0) + Number(e.quantidade);
-    });
-    saidas.forEach(s => {
-      inv[s.produto] = (inv[s.produto] || 0) - Number(s.quantidade);
-    });
-    return inv;
-  }, [entradas, saidas]);
+    return { ...inventarioAjustado };
+  }, [inventarioAjustado]);
 
   /* ✅ LISTA FILTRADA PARA INVENTÁRIO MENSAL (RÁPIDO) */
   const inventarioMensalLista = useMemo(() => {
