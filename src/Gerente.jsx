@@ -186,9 +186,11 @@ export default function Gerente({ onLogout }) {
   /* ===== FILTROS (INTERVALO) ===== */
   const [filtroEntradaDe, setFiltroEntradaDe] = useState("");
   const [filtroEntradaAte, setFiltroEntradaAte] = useState("");
+  const [pesquisaHistoricoEntradas, setPesquisaHistoricoEntradas] = useState("");
 
   const [filtroDataSaidas, setFiltroDataSaidas] = useState(""); // Saídas: De
   const [filtroDataSaidasAte, setFiltroDataSaidasAte] = useState(""); // Saídas: Até
+  const [pesquisaHistoricoSaidas, setPesquisaHistoricoSaidas] = useState("");
 
   /* ✅ ORGANIZAÇÃO PRODUTOS (COLAPSÁVEL + PESQUISA) */
   const [pesquisaProduto, setPesquisaProduto] = useState("");
@@ -918,7 +920,7 @@ export default function Gerente({ onLogout }) {
   }
 
   function exportPDFEntradas() {
-    const lista = entradas.filter(e => dentroIntervalo(e.datahora, filtroEntradaDe, filtroEntradaAte));
+    const lista = entradasFiltradas;
     if (!lista.length) return alert("Sem entradas no intervalo selecionado.");
 
     const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
@@ -945,7 +947,7 @@ export default function Gerente({ onLogout }) {
   }
 
   function exportPDFSaidas() {
-    const lista = saidas.filter(s => dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte));
+    const lista = saidasFiltradas;
     if (!lista.length) return alert("Sem saídas no intervalo selecionado.");
 
     const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
@@ -1055,12 +1057,28 @@ export default function Gerente({ onLogout }) {
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
   const entradasFiltradas = useMemo(() => {
-    return entradas.filter(e => dentroIntervalo(e.datahora, filtroEntradaDe, filtroEntradaAte));
-  }, [entradas, filtroEntradaDe, filtroEntradaAte]);
+    const termo = pesquisaHistoricoEntradas.trim().toLocaleLowerCase("pt-PT");
+    return entradas.filter(e => {
+      if (!dentroIntervalo(e.datahora, filtroEntradaDe, filtroEntradaAte)) return false;
+      if (!termo) return true;
+      const fornecedor = produtos.find(p => p.nome === e.produto)?.procedencia || "";
+      return (String(e.produto || "") + " " + String(fornecedor))
+        .toLocaleLowerCase("pt-PT")
+        .includes(termo);
+    });
+  }, [entradas, filtroEntradaDe, filtroEntradaAte, pesquisaHistoricoEntradas, produtos]);
 
   const saidasFiltradas = useMemo(() => {
-    return saidas.filter(s => dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte));
-  }, [saidas, filtroDataSaidas, filtroDataSaidasAte]);
+    const termo = pesquisaHistoricoSaidas.trim().toLocaleLowerCase("pt-PT");
+    return saidas.filter(s => {
+      if (!dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte)) return false;
+      if (!termo) return true;
+      const fornecedor = produtos.find(p => p.nome === s.produto)?.procedencia || "";
+      return (String(s.produto || "") + " " + String(fornecedor))
+        .toLocaleLowerCase("pt-PT")
+        .includes(termo);
+    });
+  }, [saidas, filtroDataSaidas, filtroDataSaidasAte, pesquisaHistoricoSaidas, produtos]);
 
   if (!stockCarregado || erroStock) {
     return (
@@ -2084,6 +2102,13 @@ export default function Gerente({ onLogout }) {
         {entradasAbertas && (
           <>
             <div style={{ marginBottom: 8, marginTop: 8 }}>
+              <input
+                type="search"
+                style={{ ...styles.input, width: "min(100%, 360px)", marginRight: 8 }}
+                value={pesquisaHistoricoEntradas}
+                onChange={e => setPesquisaHistoricoEntradas(e.target.value)}
+                placeholder="Pesquisar produto ou fornecedor…"
+              />
               <span>De</span>
               <input
                 type="date"
@@ -2103,6 +2128,7 @@ export default function Gerente({ onLogout }) {
                 onClick={() => {
                   setFiltroEntradaDe("");
                   setFiltroEntradaAte("");
+                  setPesquisaHistoricoEntradas("");
                 }}
                 type="button"
               >
@@ -2240,6 +2266,13 @@ export default function Gerente({ onLogout }) {
         {saidasAbertas && (
           <>
             <div style={{ marginBottom: 8, marginTop: 8 }}>
+              <input
+                type="search"
+                style={{ ...styles.input, width: "min(100%, 360px)", marginRight: 8 }}
+                value={pesquisaHistoricoSaidas}
+                onChange={e => setPesquisaHistoricoSaidas(e.target.value)}
+                placeholder="Pesquisar produto ou fornecedor…"
+              />
               <span>De</span>
               <input
                 type="date"
@@ -2259,6 +2292,7 @@ export default function Gerente({ onLogout }) {
                 onClick={() => {
                   setFiltroDataSaidas("");
                   setFiltroDataSaidasAte("");
+                  setPesquisaHistoricoSaidas("");
                 }}
                 type="button"
               >
