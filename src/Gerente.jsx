@@ -1054,13 +1054,29 @@ export default function Gerente({ onLogout }) {
 
   const pesquisa = pesquisaProduto.trim().toLowerCase();
 
+  function fornecedorDoProduto(nomeProduto) {
+    return produtos.find(p => p.nome === nomeProduto)?.procedencia || "";
+  }
+
   const entradasFiltradas = useMemo(() => {
-    return entradas.filter(e => dentroIntervalo(e.datahora, filtroEntradaDe, filtroEntradaAte));
-  }, [entradas, filtroEntradaDe, filtroEntradaAte]);
+    const termo = pesquisaHistoricoEntradas.trim().toLocaleLowerCase("pt-PT");
+    return entradas.filter(e => {
+      if (!dentroIntervalo(e.datahora, filtroEntradaDe, filtroEntradaAte)) return false;
+      if (!termo) return true;
+      const fornecedor = fornecedorDoProduto(e.produto);
+      return `${e.produto || ""} ${fornecedor}`.toLocaleLowerCase("pt-PT").includes(termo);
+    });
+  }, [entradas, filtroEntradaDe, filtroEntradaAte, pesquisaHistoricoEntradas, produtos]);
 
   const saidasFiltradas = useMemo(() => {
-    return saidas.filter(s => dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte));
-  }, [saidas, filtroDataSaidas, filtroDataSaidasAte]);
+    const termo = pesquisaHistoricoSaidas.trim().toLocaleLowerCase("pt-PT");
+    return saidas.filter(s => {
+      if (!dentroIntervalo(s.dataHora, filtroDataSaidas, filtroDataSaidasAte)) return false;
+      if (!termo) return true;
+      const fornecedor = fornecedorDoProduto(s.produto);
+      return `${s.produto || ""} ${fornecedor}`.toLocaleLowerCase("pt-PT").includes(termo);
+    });
+  }, [saidas, filtroDataSaidas, filtroDataSaidasAte, pesquisaHistoricoSaidas, produtos]);
 
   if (!stockCarregado || erroStock) {
     return (
@@ -2083,7 +2099,14 @@ export default function Gerente({ onLogout }) {
 
         {entradasAbertas && (
           <>
-            <div style={{ marginBottom: 8, marginTop: 8 }}>
+            <div style={{ marginBottom: 8, marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                type="search"
+                style={{ ...styles.input, minWidth: 240 }}
+                value={pesquisaHistoricoEntradas}
+                onChange={e => setPesquisaHistoricoEntradas(e.target.value)}
+                placeholder="Pesquisar produto ou fornecedor…"
+              />
               <span>De</span>
               <input
                 type="date"
@@ -2203,7 +2226,7 @@ export default function Gerente({ onLogout }) {
                 })}
                 {entradasFiltradas.length === 0 && (
                   <tr>
-                    <td data-label="" style={styles.tdHist} colSpan={7}>Sem entradas no intervalo.</td>
+                    <td data-label="" style={styles.tdHist} colSpan={7}>Sem entradas com estes filtros.</td>
                   </tr>
                 )}
               </tbody>
@@ -2213,7 +2236,7 @@ export default function Gerente({ onLogout }) {
 
         {!entradasAbertas && (
           <div style={{ marginTop: 8, opacity: 0.8 }}>
-            {entradasFiltradas.length} entrada(s) no intervalo atual.
+            {entradasFiltradas.length} entrada(s) com os filtros atuais.
           </div>
         )}
       </div>
@@ -2232,14 +2255,21 @@ export default function Gerente({ onLogout }) {
           </div>
         </div>
         <p style={{ margin: "8px 0", opacity: 0.8 }}>
-          {saidasFiltradas.length} saída(s) no intervalo atual
+          {saidasFiltradas.length} saída(s) com os filtros atuais
           {saidasAtualizadasEm && ` · Atualizado às ${saidasAtualizadasEm.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`}
         </p>
         {erroSaidas && <p role="alert" style={styles.warning}>{erroSaidas}</p>}
 
         {saidasAbertas && (
           <>
-            <div style={{ marginBottom: 8, marginTop: 8 }}>
+            <div style={{ marginBottom: 8, marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                type="search"
+                style={{ ...styles.input, minWidth: 240 }}
+                value={pesquisaHistoricoSaidas}
+                onChange={e => setPesquisaHistoricoSaidas(e.target.value)}
+                placeholder="Pesquisar produto ou fornecedor…"
+              />
               <span>De</span>
               <input
                 type="date"
@@ -2359,7 +2389,7 @@ export default function Gerente({ onLogout }) {
                 })}
                 {saidasFiltradas.length === 0 && (
                   <tr>
-                    <td data-label="" style={styles.tdHist} colSpan={7}>Sem saídas no intervalo.</td>
+                    <td data-label="" style={styles.tdHist} colSpan={7}>Sem saídas com estes filtros.</td>
                   </tr>
                 )}
               </tbody>
@@ -2369,7 +2399,7 @@ export default function Gerente({ onLogout }) {
 
         {!saidasAbertas && (
           <div style={{ marginTop: 8, opacity: 0.8 }}>
-            {saidasFiltradas.length} saída(s) no intervalo atual.
+            {saidasFiltradas.length} saída(s) com os filtros atuais.
           </div>
         )}
       </div>
